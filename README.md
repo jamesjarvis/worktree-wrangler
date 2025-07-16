@@ -1,211 +1,86 @@
-# 🌳 Worktree Wrangler
+# Worktree Wrangler
 
-> **The ultimate multi-project Git worktree manager with Claude Code integration**
+Multi-project Git worktree manager for zsh with Claude Code integration.
 
-Stop juggling multiple git repos and branches! Worktree Wrangler makes it effortless to switch between different features across all your projects while keeping your workspace organized.
+## Installation
 
-## ✨ What is this?
-
-Worktree Wrangler is a powerful zsh function that:
-- 🚀 **Instantly switches** between projects and feature branches
-- 📁 **Organizes worktrees** in a clean, predictable structure
-- 🤖 **Integrates with Claude Code** for seamless AI-assisted development
-- 🧹 **Auto-cleans** merged PR worktrees to keep your workspace tidy
-- ⚡ **Smart tab completion** for lightning-fast navigation
-
-## 🎯 Quick Start
-
-### 1. Prerequisites
-- zsh shell
-- [GitHub CLI](https://cli.github.com/) (for `--cleanup` feature)
-
-### 2. Installation
-
-**Option A: One-liner install (Recommended)**
 ```bash
 curl -sSL https://raw.githubusercontent.com/jamesjarvis/worktree-wrangler/master/install.sh | bash
 ```
 
-**Option B: Manual install**
-Copy the entire `w.zsh` file content to your `~/.zshrc`:
+Then restart your terminal or run `source ~/.zshrc`.
+
+## Usage
+
+### Basic Commands
 
 ```bash
-# Add these lines to your ~/.zshrc BEFORE the w function
-fpath=(~/.zsh/completions $fpath)
-autoload -U compinit && compinit
+# Switch to (or create) a worktree
+w myproject feature-branch
 
-# Then paste the entire w.zsh content below those lines
-```
+# Run a command in a worktree
+w myproject feature-branch git status
+w myproject feature-branch claude
 
-### 3. Restart your terminal
-```bash
-source ~/.zshrc
-```
-
-### 4. Test it works
-```bash
-w <TAB>  # Should show your projects
-```
-
-## 🎪 Usage Examples
-
-### Basic Navigation
-```bash
-# Switch to (or create) a feature branch worktree
-w myapp feature-login
-
-# Run a command in a worktree without switching
-w myapp feature-login git status
-w myapp feature-login claude  # Start Claude Code session
-```
-
-### Project Management
-```bash
-# List all worktrees across all projects
+# List all worktrees
 w --list
 
-# Remove a specific worktree
-w --rm myapp feature-login
+# Remove a worktree
+w --rm myproject feature-branch
 
-# Clean up merged PR worktrees automatically
+# Clean up merged PR worktrees
 w --cleanup
 
-# Check current version
+# Check version
 w --version
 
 # Update to latest version
 w --update
 ```
 
-### Real-world Workflow
-```bash
-# Start working on a new feature
-w myapp user-auth              # Creates and switches to worktree
-
-# Run tests in the background
-w myapp user-auth npm test
-
-# Start Claude Code session
-w myapp user-auth claude
-
-# When done, clean up merged branches
-w --cleanup
-```
-
-## 📂 Directory Structure
-
-Worktree Wrangler organizes your projects like this:
+### Directory Structure
 
 ```
 ~/projects/
-├── my-app/              # Main git repo
-├── another-project/     # Main git repo
+├── myproject/              # Main git repo
 └── worktrees/
-    ├── my-app/
-    │   ├── feature-auth/    # Worktree for feature-auth branch
-    │   └── bugfix-login/    # Worktree for bugfix-login branch
-    └── another-project/
-        └── new-feature/     # Worktree for new-feature branch
+    └── myproject/
+        ├── feature-auth/   # Worktree
+        └── bugfix-login/   # Worktree
 ```
 
-## 🚀 Features
+## Requirements
 
-### 🎯 Smart Branch Creation
-- New branches automatically prefixed with your username: `username/feature-name`
-- Seamless worktree creation and management
+- zsh shell
+- [GitHub CLI](https://cli.github.com/) (for `--cleanup` feature)
 
-### 🧹 Automatic Cleanup
-The `--cleanup` flag intelligently removes worktrees by:
-- ✅ Checking if the PR is merged on GitHub
-- ✅ Ensuring no uncommitted changes
-- ✅ Verifying no unpushed commits
-- ✅ Safely removing the worktree
+## Configuration
 
-### ⚡ Tab Completion
-- Complete project names
-- Complete existing worktree names
-- Complete common commands (git, npm, yarn, etc.)
+Edit these variables in `~/.local/share/worktree-wrangler/worktree-wrangler.zsh`:
 
-### 🔄 Auto-Update
-Stay up-to-date with the latest features:
 ```bash
-w --update    # Update to latest version from GitHub
+local projects_dir="$HOME/projects"
+local worktrees_dir="$HOME/projects/worktrees"
 ```
 
-### 🔧 Claude Code Integration
-Perfect for AI-assisted development:
+## Troubleshooting
+
+**Tab completion not working?**
+Restart your terminal completely.
+
+**Command not found?**
+Run `source ~/.zshrc` to reload.
+
+**Cleanup not working?**
+Install and authenticate GitHub CLI: `gh auth login`
+
+**Update not working?**
+Reinstall: `curl -sSL https://raw.githubusercontent.com/jamesjarvis/worktree-wrangler/master/install.sh | bash`
+
+## Uninstall
+
 ```bash
-w myapp feature-x claude    # Start Claude session in worktree
+rm -rf ~/.local/share/worktree-wrangler
+rm -f ~/.local/share/zsh/site-functions/_w
+# Remove the "Worktree Wrangler - Zsh Integration" section from ~/.zshrc
 ```
-
-## 🎨 Command Reference
-
-| Command | Description |
-|---------|-------------|
-| `w <project> <worktree>` | Switch to worktree (creates if needed) |
-| `w <project> <worktree> <command>` | Run command in worktree |
-| `w --list` | List all worktrees |
-| `w --rm <project> <worktree>` | Remove specific worktree |
-| `w --cleanup` | Remove worktrees for merged PRs |
-| `w --version` | Show current version |
-| `w --update` | Update to latest version from GitHub |
-
-## 🔧 Configuration
-
-### Custom Directories
-To use different directories, modify these lines in the `w()` function:
-```bash
-local projects_dir="$HOME/projects"      # Your git repos
-local worktrees_dir="$HOME/projects/worktrees"  # Worktrees location
-```
-
-### GitHub CLI Setup
-For the `--cleanup` feature:
-```bash
-# Install GitHub CLI
-brew install gh
-
-# Authenticate
-gh auth login
-```
-
-## 🐛 Troubleshooting
-
-### Tab completion not working?
-1. Ensure the `fpath` line comes BEFORE the `w` function in your `.zshrc`
-2. Restart your terminal completely
-3. Try: `autoload -U compinit && compinit`
-
-### "Command not found: w"?
-- Make sure you've pasted the entire script into your `.zshrc`
-- Run `source ~/.zshrc` to reload
-
-### Cleanup not working?
-- Install GitHub CLI: `brew install gh`
-- Authenticate: `gh auth login`
-- Ensure you're in a git repository with GitHub remote
-
-### Update not working?
-- Ensure you have curl installed
-- Check your internet connection
-- Try reinstalling with: `curl -sSL https://raw.githubusercontent.com/jamesjarvis/worktree-wrangler/master/install.sh | bash`
-
-## 💡 Pro Tips
-
-1. **Use descriptive worktree names** - they become your branch names
-2. **Run `w --cleanup` regularly** to keep your workspace tidy
-3. **Stay updated** with `w --update` to get the latest features
-4. **Combine with aliases** for common commands:
-   ```bash
-   alias wc='w --cleanup'
-   alias wl='w --list'
-   alias wu='w --update'
-   ```
-
-## 🙏 Credits
-
-Originally inspired by [rorydbain's gist](https://gist.github.com/rorydbain/e20e6ab0c7cc027fc1599bd2e430117d) and enhanced with additional features for modern development workflows.
-
----
-
-**Happy coding! 🚀**
