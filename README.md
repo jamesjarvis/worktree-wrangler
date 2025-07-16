@@ -21,6 +21,12 @@ Worktree Wrangler is a powerful zsh function that:
 
 ### 2. Installation
 
+**Option A: One-liner install (Recommended)**
+```bash
+curl -sSL https://raw.githubusercontent.com/jamesjarvis/worktree-wrangler/master/install.sh | bash
+```
+
+**Option B: Manual install**
 Copy the entire `w.zsh` file content to your `~/.zshrc`:
 
 ```bash
@@ -63,6 +69,12 @@ w --rm myapp feature-login
 
 # Clean up merged PR worktrees automatically
 w --cleanup
+
+# Check current version
+w --version
+
+# Update to latest version
+w --update
 ```
 
 ### Real-world Workflow
@@ -114,6 +126,12 @@ The `--cleanup` flag intelligently removes worktrees by:
 - Complete existing worktree names
 - Complete common commands (git, npm, yarn, etc.)
 
+### 🔄 Auto-Update
+Stay up-to-date with the latest features:
+```bash
+w --update    # Update to latest version from GitHub
+```
+
 ### 🔧 Claude Code Integration
 Perfect for AI-assisted development:
 ```bash
@@ -129,6 +147,8 @@ w myapp feature-x claude    # Start Claude session in worktree
 | `w --list` | List all worktrees |
 | `w --rm <project> <worktree>` | Remove specific worktree |
 | `w --cleanup` | Remove worktrees for merged PRs |
+| `w --version` | Show current version |
+| `w --update` | Update to latest version from GitHub |
 
 ## 🔧 Configuration
 
@@ -165,14 +185,21 @@ gh auth login
 - Authenticate: `gh auth login`
 - Ensure you're in a git repository with GitHub remote
 
+### Update not working?
+- Ensure you have curl installed
+- Check your internet connection
+- Try reinstalling with: `curl -sSL https://raw.githubusercontent.com/jamesjarvis/worktree-wrangler/master/install.sh | bash`
+
 ## 💡 Pro Tips
 
 1. **Use descriptive worktree names** - they become your branch names
 2. **Run `w --cleanup` regularly** to keep your workspace tidy
-3. **Combine with aliases** for common commands:
+3. **Stay updated** with `w --update` to get the latest features
+4. **Combine with aliases** for common commands:
    ```bash
    alias wc='w --cleanup'
    alias wl='w --list'
+   alias wu='w --update'
    ```
 
 ## 🙏 Credits

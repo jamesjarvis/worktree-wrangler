@@ -1,5 +1,7 @@
 #!/usr/bin/env zsh
 # Multi-project worktree manager with Claude support
+# Version: 1.0.0
+# NOTE: The version is also defined in the VERSION variable inside the w() function
 # 
 # ASSUMPTIONS & SETUP:
 # - Your git projects live in: ~/projects/
@@ -43,6 +45,8 @@
 #   w --list                            # list all worktrees
 #   w --rm <project> <worktree>         # remove worktree
 #   w --cleanup                         # remove worktrees for merged PRs
+#   w --version                         # show version
+#   w --update                          # update to latest version
 #
 # EXAMPLES:
 #   w myapp feature-x                   # cd to feature-x worktree
@@ -52,6 +56,7 @@
 
 # Multi-project worktree manager
 w() {
+    local VERSION="1.0.0"
     local projects_dir="$HOME/projects"
     local worktrees_dir="$HOME/projects/worktrees"
     
@@ -202,6 +207,77 @@ w() {
         echo "Worktrees checked: $total_checked"
         echo "Worktrees cleaned: $cleaned_count"
         return 0
+    elif [[ "$1" == "--version" ]]; then
+        echo "Worktree Wrangler v$VERSION"
+        return 0
+    elif [[ "$1" == "--update" ]]; then
+        echo "=== Updating Worktree Wrangler ==="
+        
+        # Check for required tools
+        if ! command -v curl &> /dev/null; then
+            echo "Error: curl is required for updates"
+            return 1
+        fi
+        
+        # Get current version
+        echo "Current version: $VERSION"
+        
+        # Download latest version
+        echo "Downloading latest version..."
+        local temp_file=$(mktemp)
+        if ! curl -sSL "https://raw.githubusercontent.com/jamesjarvis/worktree-wrangler/master/w.zsh" -o "$temp_file"; then
+            echo "Error: Failed to download latest version"
+            rm -f "$temp_file"
+            return 1
+        fi
+        
+        # Extract version from downloaded file
+        local latest_version
+        latest_version=$(grep "^# Version:" "$temp_file" | sed 's/# Version: //')
+        if [[ -z "$latest_version" ]]; then
+            echo "Error: Could not determine latest version"
+            rm -f "$temp_file"
+            return 1
+        fi
+        
+        echo "Latest version: $latest_version"
+        
+        # Compare versions
+        if [[ "$VERSION" == "$latest_version" ]]; then
+            echo "✅ Already up to date!"
+            rm -f "$temp_file"
+            return 0
+        fi
+        
+        # Backup current .zshrc
+        echo "Creating backup of ~/.zshrc..."
+        cp ~/.zshrc ~/.zshrc.backup.$(date +%Y%m%d_%H%M%S)
+        
+        # Find and replace the w function in .zshrc
+        local start_line end_line
+        start_line=$(grep -n "^# Multi-project worktree manager" ~/.zshrc | head -1 | cut -d: -f1)
+        end_line=$(grep -n "^autoload -U compinit && compinit" ~/.zshrc | tail -1 | cut -d: -f1)
+        
+        if [[ -z "$start_line" || -z "$end_line" ]]; then
+            echo "Error: Could not find existing installation in ~/.zshrc"
+            echo "Please reinstall using the install script"
+            rm -f "$temp_file"
+            return 1
+        fi
+        
+        # Create temporary .zshrc with updated function
+        local temp_zshrc=$(mktemp)
+        head -n $((start_line - 1)) ~/.zshrc > "$temp_zshrc"
+        cat "$temp_file" >> "$temp_zshrc"
+        tail -n +$((end_line + 1)) ~/.zshrc >> "$temp_zshrc"
+        
+        # Replace .zshrc
+        mv "$temp_zshrc" ~/.zshrc
+        rm -f "$temp_file"
+        
+        echo "✅ Successfully updated to version $latest_version"
+        echo "Please restart your terminal or run: source ~/.zshrc"
+        return 0
     fi
     
     # Normal usage: w <project> <worktree> [command...]
@@ -215,6 +291,8 @@ w() {
         echo "       w --list"
         echo "       w --rm <project> <worktree>"
         echo "       w --cleanup"
+        echo "       w --version"
+        echo "       w --update"
         return 1
     fi
     
@@ -288,9 +366,11 @@ _w() {
     
     # Define the main arguments
     _arguments -C \
-        '(--rm --cleanup)--list[List all worktrees]' \
-        '(--list --cleanup)--rm[Remove a worktree]' \
-        '(--list --rm)--cleanup[Clean up merged PR worktrees]' \
+        '(--rm --cleanup --version --update)--list[List all worktrees]' \
+        '(--list --cleanup --version --update)--rm[Remove a worktree]' \
+        '(--list --rm --version --update)--cleanup[Clean up merged PR worktrees]' \
+        '(--list --rm --cleanup --update)--version[Show version]' \
+        '(--list --rm --cleanup --version)--update[Update to latest version]' \
         '1: :->project' \
         '2: :->worktree' \
         '3: :->command' \
@@ -299,8 +379,8 @@ _w() {
     
     case $state in
         project)
-            if [[ "${words[1]}" == "--list" || "${words[1]}" == "--cleanup" ]]; then
-                # No completion needed for --list or --cleanup
+            if [[ "${words[1]}" == "--list" || "${words[1]}" == "--cleanup" || "${words[1]}" == "--version" || "${words[1]}" == "--update" ]]; then
+                # No completion needed for these flags
                 return 0
             fi
             
