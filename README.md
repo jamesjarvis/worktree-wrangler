@@ -84,3 +84,9 @@ rm -rf ~/.local/share/worktree-wrangler
 rm -f ~/.local/share/zsh/site-functions/_w
 # Remove the "Worktree Wrangler - Zsh Integration" section from ~/.zshrc
 ```
+
+## Credits
+
+Originally inspired by [rorydbain's gist](https://gist.github.com/rorydbain/e20e6ab0c7cc027fc1599bd2e430117d).
+
+This entire repository was coded by Claude (Anthropic's AI assistant).
