@@ -42,6 +42,7 @@
 #   w <project> <worktree> <command>    # run command in worktree
 #   w --list                            # list all worktrees
 #   w --rm <project> <worktree>         # remove worktree
+#   w --cleanup                         # remove worktrees for merged PRs
 #
 # EXAMPLES:
 #   w myapp feature-x                   # cd to feature-x worktree
@@ -95,6 +96,112 @@ w() {
             (cd "$projects_dir/$project" && git worktree remove "$wt_path")
         fi
         return $?
+    elif [[ "$1" == "--cleanup" ]]; then
+        # Check if gh CLI is available
+        if ! command -v gh &> /dev/null; then
+            echo "Error: GitHub CLI (gh) is not installed or not in PATH"
+            echo "Please install it from: https://cli.github.com/"
+            return 1
+        fi
+        
+        # Check if gh is authenticated
+        if ! gh auth status &> /dev/null; then
+            echo "Error: GitHub CLI is not authenticated"
+            echo "Please run: gh auth login"
+            return 1
+        fi
+        
+        echo "=== Cleaning up merged PR worktrees ==="
+        local cleaned_count=0
+        local total_checked=0
+        
+        # Function to clean up a single worktree
+        cleanup_worktree() {
+            local project="$1"
+            local worktree_name="$2"
+            local worktree_path="$3"
+            
+            echo "Checking worktree: $project/$worktree_name"
+            total_checked=$((total_checked + 1))
+            
+            # Get the branch name for this worktree
+            local branch_name
+            branch_name=$(cd "$worktree_path" && git branch --show-current 2>/dev/null)
+            if [[ -z "$branch_name" ]]; then
+                echo "  ⚠️  Skipping: Could not determine branch name"
+                return 1
+            fi
+            
+            # Check for uncommitted changes
+            if [[ -n "$(cd "$worktree_path" && git status --porcelain 2>/dev/null)" ]]; then
+                echo "  ⚠️  Skipping: Has uncommitted changes"
+                return 1
+            fi
+            
+            # Check if there's an associated PR
+            local pr_info
+            pr_info=$(cd "$projects_dir/$project" && gh pr list --head "$branch_name" --json number,state,headRefName 2>/dev/null)
+            if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+                echo "  ⚠️  Skipping: No associated PR found"
+                return 1
+            fi
+            
+            # Check if PR is merged
+            local pr_state
+            pr_state=$(echo "$pr_info" | jq -r '.[0].state' 2>/dev/null)
+            if [[ "$pr_state" != "MERGED" ]]; then
+                echo "  ⚠️  Skipping: PR is not merged (state: $pr_state)"
+                return 1
+            fi
+            
+            # Check for unpushed commits
+            local unpushed_commits
+            unpushed_commits=$(cd "$worktree_path" && git log @{upstream}..HEAD --oneline 2>/dev/null)
+            if [[ -n "$unpushed_commits" ]]; then
+                echo "  ⚠️  Skipping: Has unpushed commits"
+                return 1
+            fi
+            
+            # All checks passed - remove the worktree
+            echo "  ✅ Removing worktree (PR merged, no unpushed commits)"
+            if (cd "$projects_dir/$project" && git worktree remove "$worktree_path" 2>/dev/null); then
+                cleaned_count=$((cleaned_count + 1))
+                echo "  ✅ Successfully removed"
+            else
+                echo "  ❌ Failed to remove worktree"
+            fi
+        }
+        
+        # Check all projects
+        for project_dir in "$projects_dir"/*(/N); do
+            if [[ ! -d "$project_dir/.git" ]]; then
+                continue
+            fi
+            
+            local project_name=$(basename "$project_dir")
+            echo "\\nChecking project: $project_name"
+            
+            # Check new worktrees location
+            if [[ -d "$worktrees_dir/$project_name" ]]; then
+                for wt_dir in "$worktrees_dir/$project_name"/*(/N); do
+                    local wt_name=$(basename "$wt_dir")
+                    cleanup_worktree "$project_name" "$wt_name" "$wt_dir"
+                done
+            fi
+            
+            # Check legacy location for core project
+            if [[ "$project_name" == "core" && -d "$projects_dir/core-wts" ]]; then
+                for wt_dir in "$projects_dir/core-wts"/*(/N); do
+                    local wt_name=$(basename "$wt_dir")
+                    cleanup_worktree "$project_name" "$wt_name" "$wt_dir"
+                done
+            fi
+        done
+        
+        echo "\\n=== Cleanup Summary ==="
+        echo "Worktrees checked: $total_checked"
+        echo "Worktrees cleaned: $cleaned_count"
+        return 0
     fi
     
     # Normal usage: w <project> <worktree> [command...]
@@ -107,6 +214,7 @@ w() {
         echo "Usage: w <project> <worktree> [command...]"
         echo "       w --list"
         echo "       w --rm <project> <worktree>"
+        echo "       w --cleanup"
         return 1
     fi
     
@@ -180,8 +288,9 @@ _w() {
     
     # Define the main arguments
     _arguments -C \
-        '(--rm)--list[List all worktrees]' \
-        '(--list)--rm[Remove a worktree]' \
+        '(--rm --cleanup)--list[List all worktrees]' \
+        '(--list --cleanup)--rm[Remove a worktree]' \
+        '(--list --rm)--cleanup[Clean up merged PR worktrees]' \
         '1: :->project' \
         '2: :->worktree' \
         '3: :->command' \
@@ -190,8 +299,8 @@ _w() {
     
     case $state in
         project)
-            if [[ "${words[1]}" == "--list" ]]; then
-                # No completion needed for --list
+            if [[ "${words[1]}" == "--list" || "${words[1]}" == "--cleanup" ]]; then
+                # No completion needed for --list or --cleanup
                 return 0
             fi
             
