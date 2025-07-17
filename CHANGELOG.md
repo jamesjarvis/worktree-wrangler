@@ -5,6 +5,19 @@ All notable changes to Worktree Wrangler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2025-07-17
+
+### Fixed
+- Fixed `w --status` command changing current working directory
+- Status command now runs git operations in subshells to preserve user's location
+
+### Added
+- Test coverage for directory preservation in `--status` command
+
+### Technical Details
+- Wrapped `cd` commands in subshells `(cd "$path" && command)` to prevent directory changes
+- Added regression test to catch this issue in the future
+
 ## [1.3.1] - 2025-07-17
 
 ### Fixed

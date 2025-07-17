@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.3.1
+# Version: 1.3.2
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.3.1"
+    local VERSION="1.3.2"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
@@ -180,7 +180,7 @@ w() {
             
             if [[ -n "$status_output" ]]; then
                 echo "\\n📂 $project_name/$wt_name ($branch_name):"
-                cd "$wt_path" && git status --short
+                (cd "$wt_path" && git status --short)
                 found_any=true
             fi
         }

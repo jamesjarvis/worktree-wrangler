@@ -139,6 +139,22 @@ teardown() {
     [[ "$output" == *"testproject/feature1"* ]]
 }
 
+@test "w --status does not change current directory" {
+    w testproject feature1
+    
+    # Make worktree dirty to trigger status output
+    echo "new content" > "$TEST_PROJECTS/worktrees/testproject/feature1/newfile.txt"
+    
+    # Record current directory
+    local original_dir="$PWD"
+    
+    # Run status command
+    w --status >/dev/null
+    
+    # Verify we're still in the same directory
+    [ "$PWD" = "$original_dir" ]
+}
+
 @test "w --recent tracks worktree usage" {
     w testproject feature1
     run w --recent
