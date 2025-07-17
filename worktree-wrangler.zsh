@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.3.0
+# Version: 1.3.1
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.3.0"
+    local VERSION="1.3.1"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
@@ -97,9 +97,9 @@ w() {
                     local wt_info=$(get_worktree_info "$wt")
                     if [[ -n "$wt_info" ]]; then
                         local branch=$(echo "$wt_info" | cut -d'|' -f1)
-                        local status=$(echo "$wt_info" | cut -d'|' -f2)
+                        local git_status=$(echo "$wt_info" | cut -d'|' -f2)
                         local activity=$(echo "$wt_info" | cut -d'|' -f3)
-                        printf "  • %-20s %s %s %s\\n" "$wt_name" "($branch)" "$status" "- $activity"
+                        printf "  • %-20s %s %s %s\\n" "$wt_name" "($branch)" "$git_status" "- $activity"
                     else
                         echo "  • $wt_name (error reading info)"
                     fi
@@ -120,9 +120,9 @@ w() {
                 local wt_info=$(get_worktree_info "$wt")
                 if [[ -n "$wt_info" ]]; then
                     local branch=$(echo "$wt_info" | cut -d'|' -f1)
-                    local status=$(echo "$wt_info" | cut -d'|' -f2)
+                    local git_status=$(echo "$wt_info" | cut -d'|' -f2)
                     local activity=$(echo "$wt_info" | cut -d'|' -f3)
-                    printf "  • %-20s %s %s %s\\n" "$wt_name" "($branch)" "$status" "- $activity"
+                    printf "  • %-20s %s %s %s\\n" "$wt_name" "($branch)" "$git_status" "- $activity"
                 else
                     echo "  • $wt_name (error reading info)"
                 fi
@@ -261,8 +261,8 @@ w() {
                 local wt_info=$(get_worktree_info "$wt_path")
                 if [[ -n "$wt_info" ]]; then
                     local branch=$(echo "$wt_info" | cut -d'|' -f1)
-                    local status=$(echo "$wt_info" | cut -d'|' -f2)
-                    printf "  • %-20s %s %s %s\\n" "$project/$worktree" "($branch)" "$status" "- $time_ago"
+                    local git_status=$(echo "$wt_info" | cut -d'|' -f2)
+                    printf "  • %-20s %s %s %s\\n" "$project/$worktree" "($branch)" "$git_status" "- $time_ago"
                 else
                     printf "  • %-20s %s\\n" "$project/$worktree" "- $time_ago"
                 fi

@@ -5,6 +5,16 @@ All notable changes to Worktree Wrangler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2025-07-17
+
+### Fixed
+- Fixed variable name conflict with zsh built-in `status` variable causing `read-only variable: status` error
+- Renamed `status` variable to `git_status` throughout the codebase
+
+### Technical Details
+- Resolved conflict with zsh's built-in read-only `$status` variable
+- Updated all instances in `--list`, `--recent`, and legacy location handling
+
 ## [1.3.0] - 2025-07-17
 
 ### Added
