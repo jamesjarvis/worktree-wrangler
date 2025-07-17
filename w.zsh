@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # Multi-project worktree manager with Claude support
-# Version: 1.0.0
+# Version: 1.1.0
 # NOTE: The version is also defined in the VERSION variable inside the w() function
 # 
 # ASSUMPTIONS & SETUP:
@@ -56,7 +56,7 @@
 
 # Multi-project worktree manager
 w() {
-    local VERSION="1.0.0"
+    local VERSION="1.1.0"
     local projects_dir="$HOME/projects"
     local worktrees_dir="$HOME/projects/worktrees"
     

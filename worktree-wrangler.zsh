@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.0.0
+# Version: 1.1.0
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.0.0"
+    local VERSION="1.1.0"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
