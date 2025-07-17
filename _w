@@ -40,11 +40,13 @@ _w() {
             
             # Get list of projects (directories in ~/projects that are git repos)
             local -a projects
-            for dir in $projects_dir/*(N/); do
-                if [[ -d "$dir/.git" ]]; then
-                    projects+=(${dir:t})
-                fi
-            done
+            if [[ -d "$projects_dir" ]]; then
+                for dir in "$projects_dir"/*; do
+                    if [[ -d "$dir" && -d "$dir/.git" ]]; then
+                        projects+=(${dir:t})
+                    fi
+                done
+            fi
             
             _describe -t projects 'project' projects && return 0
             ;;
@@ -68,24 +70,30 @@ _w() {
             if [[ "$project" == "core" ]]; then
                 # Check old location
                 if [[ -d "$projects_dir/core-wts" ]]; then
-                    for wt in $projects_dir/core-wts/*(N/); do
-                        worktrees+=(${wt:t})
+                    for wt in "$projects_dir/core-wts"/*; do
+                        if [[ -d "$wt" ]]; then
+                            worktrees+=(${wt:t})
+                        fi
                     done
                 fi
                 # Check new location
                 if [[ -d "$worktrees_dir/core" ]]; then
-                    for wt in $worktrees_dir/core/*(N/); do
-                        # Avoid duplicates
-                        if [[ ! " ${worktrees[@]} " =~ " ${wt:t} " ]]; then
-                            worktrees+=(${wt:t})
+                    for wt in "$worktrees_dir/core"/*; do
+                        if [[ -d "$wt" ]]; then
+                            # Avoid duplicates
+                            if [[ ! " ${worktrees[@]} " =~ " ${wt:t} " ]]; then
+                                worktrees+=(${wt:t})
+                            fi
                         fi
                     done
                 fi
             else
                 # For other projects, check new location only
                 if [[ -d "$worktrees_dir/$project" ]]; then
-                    for wt in $worktrees_dir/$project/*(N/); do
-                        worktrees+=(${wt:t})
+                    for wt in "$worktrees_dir/$project"/*; do
+                        if [[ -d "$wt" ]]; then
+                            worktrees+=(${wt:t})
+                        fi
                     done
                 fi
             fi

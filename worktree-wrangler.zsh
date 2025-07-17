@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.1.1
+# Version: 1.2.0
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.1.1"
+    local VERSION="1.2.0"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
@@ -140,17 +140,69 @@ w() {
                 return 1
             fi
             
-            # Check if there's an associated PR
-            local pr_info
-            pr_info=$(cd "$projects_dir/$project" && gh pr list --head "$branch_name" --json number,state,headRefName 2>/dev/null)
+            # Check if there's an associated PR using robust detection
+            local pr_info=""
+            
+            # Method 1: Try different branch formats
+            for branch_format in "$branch_name" "origin/$branch_name" "${branch_name#*/}"; do
+                pr_info=$(cd "$projects_dir/$project" && gh pr list --head "$branch_format" --json number,state,headRefName 2>/dev/null)
+                if [[ -n "$pr_info" && "$pr_info" != "[]" ]]; then
+                    break
+                fi
+            done
+            
+            # Method 2: gh pr status from worktree (context-aware)
+            if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+                pr_info=$(cd "$worktree_path" && gh pr status --json number,state,headRefName 2>/dev/null)
+            fi
+            
+            # Method 3: List all PRs and filter (most flexible)
+            if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+                local all_prs=$(cd "$projects_dir/$project" && gh pr list --json number,state,headRefName 2>/dev/null)
+                if [[ -n "$all_prs" && "$all_prs" != "[]" ]]; then
+                    # Try exact match first
+                    pr_info=$(echo "$all_prs" | jq --arg branch "$branch_name" '.[] | select(.headRefName == $branch)')
+                    if [[ -z "$pr_info" || "$pr_info" == "null" ]]; then
+                        # Try partial match
+                        pr_info=$(echo "$all_prs" | jq --arg branch "$branch_name" '.[] | select(.headRefName | contains($branch))')
+                    fi
+                    if [[ -z "$pr_info" || "$pr_info" == "null" ]]; then
+                        # Try without username prefix
+                        local short_branch="${branch_name#*/}"
+                        pr_info=$(echo "$all_prs" | jq --arg branch "$short_branch" '.[] | select(.headRefName | contains($branch))')
+                    fi
+                    if [[ -z "$pr_info" || "$pr_info" == "null" ]]; then
+                        pr_info=""
+                    fi
+                fi
+            fi
+            
+            # Method 4: Commit-based lookup (most reliable)
+            if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+                local current_commit=$(cd "$worktree_path" && git rev-parse HEAD 2>/dev/null)
+                if [[ -n "$current_commit" ]]; then
+                    pr_info=$(cd "$projects_dir/$project" && gh pr list --search "sha:$current_commit" --json number,state,headRefName 2>/dev/null)
+                fi
+            fi
+            
+            # Final check
             if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
                 echo "  ⚠️  Skipping: No associated PR found"
                 return 1
             fi
             
-            # Check if PR is merged
-            local pr_state
-            pr_state=$(echo "$pr_info" | jq -r '.[0].state' 2>/dev/null)
+            # Extract PR state using smart parsing
+            local pr_state=""
+            # Check if it's gh pr status format (has currentBranch)
+            if echo "$pr_info" | jq -e '.currentBranch' >/dev/null 2>&1; then
+                pr_state=$(echo "$pr_info" | jq -r '.currentBranch.state')
+            # Check if it's an array
+            elif echo "$pr_info" | jq -e '.[0]' >/dev/null 2>&1; then
+                pr_state=$(echo "$pr_info" | jq -r '.[0].state')
+            # Check if it's a single object
+            elif echo "$pr_info" | jq -e '.state' >/dev/null 2>&1; then
+                pr_state=$(echo "$pr_info" | jq -r '.state')
+            fi
             if [[ "$pr_state" != "MERGED" ]]; then
                 echo "  ⚠️  Skipping: PR is not merged (state: $pr_state)"
                 return 1
