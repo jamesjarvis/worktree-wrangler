@@ -16,7 +16,7 @@ This file contains instructions for Claude (Anthropic's AI assistant) when worki
   - `[AI] feat: add configuration persistence system`
   - `[AI] docs: update README with new installation method`
 
-**Git Configuration**: Use the existing git user email (`james.jarvis@incident.io`)
+**Git Configuration**: Use the existing git user email (check with `git config user.email`)
 
 ### Automated Releases
 
