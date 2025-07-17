@@ -227,6 +227,60 @@ The PR detection system is complex but critical. Key points:
 - **Defaults** - Graceful fallback to defaults
 - **User experience** - Clear error messages with solutions
 
+## Bug Fix Workflow
+
+### When User Reports a Bug
+
+1. **Reproduce the Issue**
+   - Test in clean environment
+   - Identify specific command/scenario that fails
+   - Note environment details (zsh version, OS, etc.)
+
+2. **Debug and Fix**
+   - Use debugging patterns from CLAUDE-DEBUGGING.md
+   - Create minimal reproduction case
+   - Implement fix using proper patterns (subshells, variable naming, etc.)
+
+3. **Add Regression Test**
+   - Always add test to prevent bug from returning
+   - Test should fail before fix, pass after fix
+   - Use patterns from CLAUDE-TESTING.md
+
+4. **Version Update Process**
+   - PATCH version for bug fixes (X.Y.Z → X.Y.Z+1)
+   - Update version in all required files
+   - Update CHANGELOG.md with fix details
+
+5. **Commit and Release**
+   - Use `[AI] fix:` commit format
+   - Push to GitHub BEFORE creating release
+   - Create GitHub release with detailed notes
+
+### Example Bug Fix Workflow
+```bash
+# 1. Reproduce and fix
+# 2. Add regression test
+cd tests && ./run-tests.sh  # Verify fix works
+
+# 3. Update version and changelog
+# 4. Commit
+git add -A && git commit -m "[AI] fix: description of bug fix"
+
+# 5. Push and release
+git push --no-verify origin master
+gh release create vX.Y.Z --title "Bug Fix" --notes "..."
+```
+
+### Critical Bug Fix Patterns
+
+**Always check for these common issues**:
+- **Directory changes**: Use subshells `(cd "$path" && command)` 
+- **Variable conflicts**: Avoid zsh built-ins like `status`, `options`
+- **Environment variables**: Check `$USER`, `$HOME` are set properly
+- **Git worktree validation**: Use `[ -e "$path/.git" ]` not `[ -d "$path/.git" ]`
+
+**Always add regression tests** for fixed bugs to prevent them from returning.
+
 ## Release Process
 
 ### Before Release
@@ -284,8 +338,52 @@ The PR detection system is complex but critical. Key points:
 - Update CHANGELOG.md for all user-facing changes
 - Maintain this CLAUDE.md file when architecture changes
 
+## Documentation Maintenance
+
+### Self-Updating Documentation
+
+**IMPORTANT**: Claude should proactively update this CLAUDE.md file and related documentation whenever beneficial.
+
+**When to Update Documentation**:
+- After discovering new debugging patterns or common issues
+- When implementing new features that require specific knowledge
+- After fixing bugs that reveal knowledge gaps
+- When developing new testing approaches or tools
+- When noticing repeated questions or confusion in the codebase
+
+**How to Update**:
+1. **Main CLAUDE.md**: High-level processes, version management, architecture
+2. **CLAUDE-TESTING.md**: Detailed testing procedures, debugging tests, BATS usage
+3. **CLAUDE-DEBUGGING.md**: Common bug patterns, debugging workflows, zsh gotchas
+4. **Create new docs**: If you discover a significant new area needing documentation
+
+**Documentation Philosophy**: 
+- Write for future Claude instances who need to understand and maintain this code
+- Include specific examples and code snippets
+- Document both what to do and what NOT to do
+- Explain the "why" behind patterns and decisions
+
+### Related Documentation Files
+
+**For Development Work**:
+- **CLAUDE-TESTING.md**: Comprehensive testing guide including BATS usage, Docker debugging, and test patterns
+- **CLAUDE-DEBUGGING.md**: Common bug patterns, debugging workflows, and zsh-specific issues
+
+**For Users**:
+- **README.md**: User-facing documentation (keep simple and practical)
+- **CHANGELOG.md**: Version history for users
+- **tests/README.md**: Testing documentation for contributors
+
+**When to Use Each**:
+- **Writing/debugging tests** → Read CLAUDE-TESTING.md
+- **Fixing bugs or investigating issues** → Read CLAUDE-DEBUGGING.md  
+- **Understanding overall process** → This CLAUDE.md file
+- **User questions** → README.md
+
 ## Final Notes
 
 This repository was entirely coded by Claude and should maintain that heritage. The tool is designed to be simple, reliable, and user-friendly while leveraging modern development practices like GitHub CLI integration and XDG directory standards.
 
 When in doubt, prioritize user experience and reliability over complex features. The core use case is switching between worktrees quickly and cleaning up merged PRs automatically.
+
+**Remember**: Update this documentation whenever you learn something that would benefit future Claude instances working on this codebase.
