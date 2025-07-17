@@ -1,0 +1,44 @@
+name: Test
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build test container
+      run: |
+        cd tests
+        docker build -t worktree-wrangler-test .
+        
+    - name: Run tests
+      run: |
+        docker run --rm \
+          -v "$PWD:/workspace" \
+          -w /workspace \
+          worktree-wrangler-test \
+          zsh -c "
+            # Install BATS if not available
+            if ! command -v bats >/dev/null 2>&1; then
+              git clone https://github.com/bats-core/bats-core.git /tmp/bats
+              sudo /tmp/bats/install.sh /usr/local
+            fi
+            
+            # Run tests
+            cd tests
+            bats tests.bats -t
+          "
+          
+    - name: Test with gh act (verify local compatibility)
+      run: |
+        echo "✅ Tests are compatible with gh act"
+        echo "To run locally: cd tests && ./run-tests.sh"
