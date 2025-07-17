@@ -5,6 +5,30 @@ All notable changes to Worktree Wrangler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2025-07-17
+
+### Added
+- **Colorful output throughout the tool** with beautiful colors and better visual hierarchy
+- **Enhanced `--recent` command** with helpful guidance when no usage history exists
+- **Improved visual feedback** for worktree creation with success/failure messages
+
+### Changed
+- All command outputs now use colors: cyan headers, green success, red errors, yellow warnings
+- Project names displayed with purple bold formatting and folder emojis
+- Worktree information shows colored branch names, status indicators, and timestamps
+- Better visual distinction between clean and dirty worktree states
+- Enhanced guidance messages with colored examples and clearer instructions
+
+### Fixed
+- **`--recent` command explanation**: Now clearly explains why it might be empty and how to populate it
+- Better user experience for first-time users with more helpful empty state messages
+
+### Technical Details
+- Added comprehensive color definitions using ANSI escape codes
+- Colors are used consistently across all output commands
+- Maintained emoji usage while adding complementary color coding
+- Enhanced visual hierarchy with bold, dim, and colored text combinations
+
 ## [1.3.2] - 2025-07-17
 
 ### Fixed

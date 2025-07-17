@@ -1,10 +1,23 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.3.2
+# Version: 1.3.3
+
+# Color definitions for beautiful output
+local -A COLORS
+COLORS[RED]='\033[0;31m'
+COLORS[GREEN]='\033[0;32m'
+COLORS[YELLOW]='\033[1;33m'
+COLORS[BLUE]='\033[0;34m'
+COLORS[PURPLE]='\033[0;35m'
+COLORS[CYAN]='\033[0;36m'
+COLORS[WHITE]='\033[1;37m'
+COLORS[BOLD]='\033[1m'
+COLORS[DIM]='\033[2m'
+COLORS[NC]='\033[0m'  # No Color
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.3.2"
+    local VERSION="1.3.3"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
@@ -69,18 +82,18 @@ w() {
 
     # Handle special flags
     if [[ "$1" == "--list" ]]; then
-        echo "=== All Worktrees ==="
-        echo "Configuration:"
-        echo "  Projects: $projects_dir"
-        echo "  Worktrees: $worktrees_dir"
+        echo -e "${COLORS[CYAN]}${COLORS[BOLD]}🌳 === All Worktrees ===${COLORS[NC]}"
+        echo -e "${COLORS[DIM]}Configuration:${COLORS[NC]}"
+        echo -e "${COLORS[DIM]}  Projects: ${COLORS[BLUE]}$projects_dir${COLORS[NC]}"
+        echo -e "${COLORS[DIM]}  Worktrees: ${COLORS[BLUE]}$worktrees_dir${COLORS[NC]}"
         echo ""
         
         # Check if projects directory exists
         if [[ ! -d "$projects_dir" ]]; then
-            echo "❌ Projects directory not found: $projects_dir"
+            echo -e "${COLORS[RED]}❌ Projects directory not found: ${COLORS[BOLD]}$projects_dir${COLORS[NC]}"
             echo ""
-            echo "💡 To fix this, set your projects directory:"
-            echo "   w --config projects ~/your/projects/directory"
+            echo -e "${COLORS[YELLOW]}💡 To fix this, set your projects directory:${COLORS[NC]}"
+            echo -e "   ${COLORS[GREEN]}w --config projects ~/your/projects/directory${COLORS[NC]}"
             return 1
         fi
         
@@ -90,7 +103,7 @@ w() {
         if [[ -d "$worktrees_dir" ]]; then
             for project in $worktrees_dir/*(/N); do
                 project_name=$(basename "$project")
-                echo "\\n[$project_name]"
+                echo -e "\\n${COLORS[PURPLE]}${COLORS[BOLD]}📁 [$project_name]${COLORS[NC]}"
                 local found_worktrees=false
                 for wt in $project/*(/N); do
                     local wt_name=$(basename "$wt")
@@ -99,22 +112,22 @@ w() {
                         local branch=$(echo "$wt_info" | cut -d'|' -f1)
                         local git_status=$(echo "$wt_info" | cut -d'|' -f2)
                         local activity=$(echo "$wt_info" | cut -d'|' -f3)
-                        printf "  • %-20s %s %s %s\\n" "$wt_name" "($branch)" "$git_status" "- $activity"
+                        printf "  ${COLORS[GREEN]}•${COLORS[NC]} %-20s ${COLORS[CYAN]}(%s)${COLORS[NC]} %s ${COLORS[DIM]}- %s${COLORS[NC]}\\n" "$wt_name" "$branch" "$git_status" "$activity"
                     else
-                        echo "  • $wt_name (error reading info)"
+                        echo -e "  ${COLORS[RED]}• $wt_name ${COLORS[YELLOW]}(error reading info)${COLORS[NC]}"
                     fi
                     found_worktrees=true
                     found_any=true
                 done
                 if [[ "$found_worktrees" == "false" ]]; then
-                    echo "  (no worktrees)"
+                    echo -e "  ${COLORS[DIM]}(no worktrees)${COLORS[NC]}"
                 fi
             done
         fi
         
         # Also check old core-wts location
         if [[ -d "$projects_dir/core-wts" ]]; then
-            echo "\\n[core] (legacy location)"
+            echo -e "\\n${COLORS[PURPLE]}${COLORS[BOLD]}📁 [core]${COLORS[NC]} ${COLORS[DIM]}(legacy location)${COLORS[NC]}"
             for wt in $projects_dir/core-wts/*(/N); do
                 local wt_name=$(basename "$wt")
                 local wt_info=$(get_worktree_info "$wt")
@@ -122,24 +135,24 @@ w() {
                     local branch=$(echo "$wt_info" | cut -d'|' -f1)
                     local git_status=$(echo "$wt_info" | cut -d'|' -f2)
                     local activity=$(echo "$wt_info" | cut -d'|' -f3)
-                    printf "  • %-20s %s %s %s\\n" "$wt_name" "($branch)" "$git_status" "- $activity"
+                    printf "  ${COLORS[GREEN]}•${COLORS[NC]} %-20s ${COLORS[CYAN]}(%s)${COLORS[NC]} %s ${COLORS[DIM]}- %s${COLORS[NC]}\\n" "$wt_name" "$branch" "$git_status" "$activity"
                 else
-                    echo "  • $wt_name (error reading info)"
+                    echo -e "  ${COLORS[RED]}• $wt_name ${COLORS[YELLOW]}(error reading info)${COLORS[NC]}"
                 fi
                 found_any=true
             done
         fi
         
         if [[ "$found_any" == "false" ]]; then
-            echo "\\nNo worktrees found."
+            echo -e "\\n${COLORS[YELLOW]}🌱 No worktrees found.${COLORS[NC]}"
             echo ""
-            echo "💡 To create your first worktree:"
-            echo "   w <project> <worktree-name>"
+            echo -e "${COLORS[YELLOW]}💡 To create your first worktree:${COLORS[NC]}"
+            echo -e "   ${COLORS[GREEN]}w <project> <worktree-name>${COLORS[NC]}"
             echo ""
-            echo "💡 Available projects in $projects_dir:"
+            echo -e "${COLORS[YELLOW]}💡 Available projects in ${COLORS[BLUE]}$projects_dir${COLORS[YELLOW]}:${COLORS[NC]}"
             for dir in "$projects_dir"/*(/N); do
                 if [[ -d "$dir/.git" ]]; then
-                    echo "   • $(basename "$dir")"
+                    echo -e "   ${COLORS[GREEN]}• ${COLORS[WHITE]}$(basename "$dir")${COLORS[NC]}"
                 fi
             done
         fi
@@ -149,7 +162,7 @@ w() {
         shift
         local target_project="$1"
         
-        echo "=== Worktree Status ==="
+        echo -e "${COLORS[CYAN]}${COLORS[BOLD]}📊 === Worktree Status ===${COLORS[NC]}"
         
         # Check if projects directory exists
         if [[ ! -d "$projects_dir" ]]; then
@@ -179,7 +192,7 @@ w() {
             status_output=$(cd "$wt_path" && git status --porcelain 2>/dev/null)
             
             if [[ -n "$status_output" ]]; then
-                echo "\\n📂 $project_name/$wt_name ($branch_name):"
+                echo -e "\\n${COLORS[PURPLE]}📂 $project_name/$wt_name ${COLORS[CYAN]}($branch_name)${COLORS[NC]}:"
                 (cd "$wt_path" && git status --short)
                 found_any=true
             fi
@@ -212,9 +225,9 @@ w() {
         
         if [[ "$found_any" == "false" ]]; then
             if [[ -n "$target_project" ]]; then
-                echo "\\n✅ All worktrees in '$target_project' are clean"
+                echo -e "\\n${COLORS[GREEN]}✅ All worktrees in '${COLORS[BOLD]}$target_project${COLORS[NC]}${COLORS[GREEN]}' are clean${COLORS[NC]}"
             else
-                echo "\\n✅ All worktrees are clean"
+                echo -e "\\n${COLORS[GREEN]}✅ All worktrees are clean${COLORS[NC]}"
             fi
         fi
         
@@ -222,11 +235,14 @@ w() {
     elif [[ "$1" == "--recent" ]]; then
         local recent_file="$HOME/.local/share/worktree-wrangler/recent"
         
-        echo "=== Recent Worktrees ==="
+        echo -e "${COLORS[CYAN]}${COLORS[BOLD]}⏰ === Recent Worktrees ===${COLORS[NC]}"
         
         if [[ ! -f "$recent_file" ]]; then
-            echo "\\nNo recent worktrees found."
-            echo "💡 Start using worktrees to see them here!"
+            echo -e "\\n${COLORS[YELLOW]}🕰️  No recent worktrees found.${COLORS[NC]}"
+            echo -e "${COLORS[YELLOW]}💡 Start using worktrees to see them here!${COLORS[NC]}"
+            echo ""
+            echo -e "${COLORS[DIM]}Try: ${COLORS[GREEN]}w <project> <worktree>${COLORS[DIM]} to switch to a worktree${COLORS[NC]}"
+            echo -e "${COLORS[DIM]}Then run: ${COLORS[GREEN]}w --recent${COLORS[DIM]} to see your usage history${COLORS[NC]}"
             return 0
         fi
         
@@ -262,19 +278,19 @@ w() {
                 if [[ -n "$wt_info" ]]; then
                     local branch=$(echo "$wt_info" | cut -d'|' -f1)
                     local git_status=$(echo "$wt_info" | cut -d'|' -f2)
-                    printf "  • %-20s %s %s %s\\n" "$project/$worktree" "($branch)" "$git_status" "- $time_ago"
+                    printf "  ${COLORS[GREEN]}•${COLORS[NC]} %-20s ${COLORS[CYAN]}(%s)${COLORS[NC]} %s ${COLORS[DIM]}- %s${COLORS[NC]}\\n" "$project/$worktree" "$branch" "$git_status" "$time_ago"
                 else
-                    printf "  • %-20s %s\\n" "$project/$worktree" "- $time_ago"
+                    printf "  ${COLORS[GREEN]}•${COLORS[NC]} %-20s ${COLORS[DIM]}- %s${COLORS[NC]}\\n" "$project/$worktree" "$time_ago"
                 fi
             else
-                printf "  • %-20s %s %s\\n" "$project/$worktree" "(deleted)" "- $time_ago"
+                printf "  ${COLORS[RED]}•${COLORS[NC]} %-20s ${COLORS[RED]}(deleted)${COLORS[NC]} ${COLORS[DIM]}- %s${COLORS[NC]}\\n" "$project/$worktree" "$time_ago"
             fi
             
             count=$((count + 1))
         done < <(tac "$recent_file" 2>/dev/null)
         
         if [[ $count -eq 0 ]]; then
-            echo "\\nNo recent worktrees found."
+            echo -e "\\n${COLORS[YELLOW]}🕰️  No recent worktrees found.${COLORS[NC]}"
         fi
         
         return 0
@@ -457,7 +473,7 @@ w() {
         echo "Worktrees cleaned: $cleaned_count"
         return 0
     elif [[ "$1" == "--version" ]]; then
-        echo "Worktree Wrangler v$VERSION"
+        echo -e "${COLORS[PURPLE]}${COLORS[BOLD]}🚀 Worktree Wrangler${COLORS[NC]} ${COLORS[GREEN]}v$VERSION${COLORS[NC]}"
         return 0
     elif [[ "$1" == "--update" ]]; then
         echo "=== Updating Worktree Wrangler ==="
@@ -645,7 +661,7 @@ w() {
     
     # If worktree doesn't exist, create it
     if [[ -z "$wt_path" || ! -d "$wt_path" ]]; then
-        echo "Creating new worktree: $worktree"
+        echo -e "${COLORS[YELLOW]}🌱 Creating new worktree: ${COLORS[BOLD]}$worktree${COLORS[NC]}"
         
         # Ensure worktrees directory exists
         mkdir -p "$worktrees_dir/$project"
@@ -656,9 +672,10 @@ w() {
         # Create the worktree in new location
         wt_path="$worktrees_dir/$project/$worktree"
         (cd "$projects_dir/$project" && git worktree add "$wt_path" -b "$branch_name") || {
-            echo "Failed to create worktree"
+            echo -e "${COLORS[RED]}❌ Failed to create worktree${COLORS[NC]}"
             return 1
         }
+        echo -e "${COLORS[GREEN]}✅ Worktree created successfully!${COLORS[NC]}"
     fi
     
     # Helper function to track recent worktree usage
