@@ -9,12 +9,14 @@ _w() {
     
     # Define the main arguments
     _arguments -C \
-        '(--rm --cleanup --version --update --config)--list[List all worktrees]' \
-        '(--list --cleanup --version --update --config)--rm[Remove a worktree]' \
-        '(--list --rm --version --update --config)--cleanup[Clean up merged PR worktrees]' \
-        '(--list --rm --cleanup --update --config)--version[Show version]' \
-        '(--list --rm --cleanup --version --config)--update[Update to latest version]' \
-        '(--list --rm --cleanup --version --update)--config[Configure settings]' \
+        '(--rm --cleanup --version --update --config --status --recent)--list[List all worktrees]' \
+        '(--list --cleanup --version --update --config --recent)--status[Show git status for worktrees]' \
+        '(--list --rm --cleanup --version --update --config --status)--recent[Show recently used worktrees]' \
+        '(--list --cleanup --version --update --config --status --recent)--rm[Remove a worktree]' \
+        '(--list --rm --version --update --config --status --recent)--cleanup[Clean up merged PR worktrees]' \
+        '(--list --rm --cleanup --update --config --status --recent)--version[Show version]' \
+        '(--list --rm --cleanup --version --config --status --recent)--update[Update to latest version]' \
+        '(--list --rm --cleanup --version --update --status --recent)--config[Configure settings]' \
         '1: :->project' \
         '2: :->worktree' \
         '3: :->command' \
@@ -23,9 +25,20 @@ _w() {
     
     case $state in
         project)
-            if [[ "${words[1]}" == "--list" || "${words[1]}" == "--cleanup" || "${words[1]}" == "--version" || "${words[1]}" == "--update" ]]; then
+            if [[ "${words[1]}" == "--list" || "${words[1]}" == "--cleanup" || "${words[1]}" == "--version" || "${words[1]}" == "--update" || "${words[1]}" == "--recent" ]]; then
                 # No completion needed for these flags
                 return 0
+            elif [[ "${words[1]}" == "--status" ]]; then
+                # Complete project names for --status
+                local -a projects
+                if [[ -d "$projects_dir" ]]; then
+                    for dir in "$projects_dir"/*; do
+                        if [[ -d "$dir" && -d "$dir/.git" ]]; then
+                            projects+=(${dir:t})
+                        fi
+                    done
+                fi
+                _describe -t projects 'project (optional)' projects && return 0
             elif [[ "${words[1]}" == "--config" ]]; then
                 # Complete config subcommands
                 local -a config_actions

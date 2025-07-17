@@ -5,6 +5,25 @@ All notable changes to Worktree Wrangler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-07-17
+
+### Added
+- **Enhanced `--list` command**: Now shows git status, branch names, ahead/behind indicators, and last commit time
+- **New `--status` command**: Show git status for all worktrees or specific project worktrees
+- **New `--recent` command**: Display recently used worktrees with timestamps and current status
+- **Recent worktree tracking**: Automatically tracks worktree usage for quick access
+
+### Changed
+- Improved worktree information display with emojis and formatted output
+- Enhanced tab completion for new commands
+- Better visual formatting for worktree listings
+
+### Technical Details
+- Added `get_worktree_info()` helper function for consistent worktree information retrieval
+- Implemented recent usage tracking in `~/.local/share/worktree-wrangler/recent`
+- Enhanced completion system to support `--status` and `--recent` commands
+- Cross-platform date handling for recent worktree timestamps
+
 ## [1.2.0] - 2025-07-17
 
 ### Fixed

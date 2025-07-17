@@ -22,8 +22,15 @@ w myproject feature-branch
 w myproject feature-branch git status
 w myproject feature-branch claude
 
-# List all worktrees
+# List all worktrees (with status and branch info)
 w --list
+
+# Show git status across all worktrees (or specific project)
+w --status
+w --status myproject
+
+# Show recently used worktrees
+w --recent
 
 # Remove a worktree
 w --rm myproject feature-branch

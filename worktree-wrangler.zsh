@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.2.0
+# Version: 1.3.0
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.2.0"
+    local VERSION="1.3.0"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
@@ -18,6 +18,55 @@ w() {
     fi
     local worktrees_dir="$projects_dir/worktrees"
     
+    # Helper function to get worktree information
+    get_worktree_info() {
+        local wt_path="$1"
+        local branch_name=""
+        local status_info=""
+        local last_activity=""
+        
+        if [[ ! -d "$wt_path" ]]; then
+            return 1
+        fi
+        
+        # Get branch name
+        branch_name=$(cd "$wt_path" && git branch --show-current 2>/dev/null)
+        if [[ -z "$branch_name" ]]; then
+            branch_name="(detached)"
+        fi
+        
+        # Get git status
+        local status_output
+        status_output=$(cd "$wt_path" && git status --porcelain 2>/dev/null)
+        local ahead_behind
+        ahead_behind=$(cd "$wt_path" && git status -b --porcelain 2>/dev/null | head -1)
+        
+        if [[ -n "$status_output" ]]; then
+            local modified=$(echo "$status_output" | wc -l | tr -d ' ')
+            status_info="📝 $modified files"
+        else
+            status_info="✅ clean"
+        fi
+        
+        # Check if ahead/behind
+        if [[ "$ahead_behind" == *"ahead"* ]]; then
+            local ahead_count=$(echo "$ahead_behind" | sed -n 's/.*ahead \([0-9]\+\).*/\1/p')
+            status_info="$status_info, ↑$ahead_count"
+        fi
+        if [[ "$ahead_behind" == *"behind"* ]]; then
+            local behind_count=$(echo "$ahead_behind" | sed -n 's/.*behind \([0-9]\+\).*/\1/p')
+            status_info="$status_info, ↓$behind_count"
+        fi
+        
+        # Get last activity (last commit date)
+        last_activity=$(cd "$wt_path" && git log -1 --format="%cr" 2>/dev/null)
+        if [[ -z "$last_activity" ]]; then
+            last_activity="no commits"
+        fi
+        
+        echo "$branch_name|$status_info|$last_activity"
+    }
+
     # Handle special flags
     if [[ "$1" == "--list" ]]; then
         echo "=== All Worktrees ==="
@@ -44,7 +93,16 @@ w() {
                 echo "\\n[$project_name]"
                 local found_worktrees=false
                 for wt in $project/*(/N); do
-                    echo "  • $(basename "$wt")"
+                    local wt_name=$(basename "$wt")
+                    local wt_info=$(get_worktree_info "$wt")
+                    if [[ -n "$wt_info" ]]; then
+                        local branch=$(echo "$wt_info" | cut -d'|' -f1)
+                        local status=$(echo "$wt_info" | cut -d'|' -f2)
+                        local activity=$(echo "$wt_info" | cut -d'|' -f3)
+                        printf "  • %-20s %s %s %s\\n" "$wt_name" "($branch)" "$status" "- $activity"
+                    else
+                        echo "  • $wt_name (error reading info)"
+                    fi
                     found_worktrees=true
                     found_any=true
                 done
@@ -58,7 +116,16 @@ w() {
         if [[ -d "$projects_dir/core-wts" ]]; then
             echo "\\n[core] (legacy location)"
             for wt in $projects_dir/core-wts/*(/N); do
-                echo "  • $(basename "$wt")"
+                local wt_name=$(basename "$wt")
+                local wt_info=$(get_worktree_info "$wt")
+                if [[ -n "$wt_info" ]]; then
+                    local branch=$(echo "$wt_info" | cut -d'|' -f1)
+                    local status=$(echo "$wt_info" | cut -d'|' -f2)
+                    local activity=$(echo "$wt_info" | cut -d'|' -f3)
+                    printf "  • %-20s %s %s %s\\n" "$wt_name" "($branch)" "$status" "- $activity"
+                else
+                    echo "  • $wt_name (error reading info)"
+                fi
                 found_any=true
             done
         fi
@@ -75,6 +142,139 @@ w() {
                     echo "   • $(basename "$dir")"
                 fi
             done
+        fi
+        
+        return 0
+    elif [[ "$1" == "--status" ]]; then
+        shift
+        local target_project="$1"
+        
+        echo "=== Worktree Status ==="
+        
+        # Check if projects directory exists
+        if [[ ! -d "$projects_dir" ]]; then
+            echo "❌ Projects directory not found: $projects_dir"
+            return 1
+        fi
+        
+        local found_any=false
+        
+        # Helper function to show status for a single worktree
+        show_worktree_status() {
+            local wt_path="$1"
+            local wt_name="$2"
+            local project_name="$3"
+            
+            if [[ ! -d "$wt_path" ]]; then
+                return 1
+            fi
+            
+            local branch_name
+            branch_name=$(cd "$wt_path" && git branch --show-current 2>/dev/null)
+            if [[ -z "$branch_name" ]]; then
+                branch_name="(detached)"
+            fi
+            
+            local status_output
+            status_output=$(cd "$wt_path" && git status --porcelain 2>/dev/null)
+            
+            if [[ -n "$status_output" ]]; then
+                echo "\\n📂 $project_name/$wt_name ($branch_name):"
+                cd "$wt_path" && git status --short
+                found_any=true
+            fi
+        }
+        
+        # Check new location
+        if [[ -d "$worktrees_dir" ]]; then
+            for project in $worktrees_dir/*(/N); do
+                project_name=$(basename "$project")
+                
+                # Skip if target_project specified and doesn't match
+                if [[ -n "$target_project" && "$project_name" != "$target_project" ]]; then
+                    continue
+                fi
+                
+                for wt in $project/*(/N); do
+                    show_worktree_status "$wt" "$(basename "$wt")" "$project_name"
+                done
+            done
+        fi
+        
+        # Also check old core-wts location
+        if [[ -d "$projects_dir/core-wts" ]]; then
+            if [[ -z "$target_project" || "$target_project" == "core" ]]; then
+                for wt in $projects_dir/core-wts/*(/N); do
+                    show_worktree_status "$wt" "$(basename "$wt")" "core"
+                done
+            fi
+        fi
+        
+        if [[ "$found_any" == "false" ]]; then
+            if [[ -n "$target_project" ]]; then
+                echo "\\n✅ All worktrees in '$target_project' are clean"
+            else
+                echo "\\n✅ All worktrees are clean"
+            fi
+        fi
+        
+        return 0
+    elif [[ "$1" == "--recent" ]]; then
+        local recent_file="$HOME/.local/share/worktree-wrangler/recent"
+        
+        echo "=== Recent Worktrees ==="
+        
+        if [[ ! -f "$recent_file" ]]; then
+            echo "\\nNo recent worktrees found."
+            echo "💡 Start using worktrees to see them here!"
+            return 0
+        fi
+        
+        local count=0
+        while IFS='|' read -r timestamp project worktree; do
+            if [[ $count -ge 10 ]]; then  # Show last 10
+                break
+            fi
+            
+            # Convert timestamp to human readable
+            local time_ago
+            if command -v date >/dev/null 2>&1; then
+                if [[ "$(uname)" == "Darwin" ]]; then
+                    time_ago=$(date -r "$timestamp" "+%Y-%m-%d %H:%M" 2>/dev/null)
+                else
+                    time_ago=$(date -d "@$timestamp" "+%Y-%m-%d %H:%M" 2>/dev/null)
+                fi
+            fi
+            if [[ -z "$time_ago" ]]; then
+                time_ago="recently"
+            fi
+            
+            # Check if worktree still exists
+            local wt_path=""
+            if [[ "$project" == "core" && -d "$projects_dir/core-wts/$worktree" ]]; then
+                wt_path="$projects_dir/core-wts/$worktree"
+            elif [[ -d "$worktrees_dir/$project/$worktree" ]]; then
+                wt_path="$worktrees_dir/$project/$worktree"
+            fi
+            
+            if [[ -n "$wt_path" ]]; then
+                local wt_info=$(get_worktree_info "$wt_path")
+                if [[ -n "$wt_info" ]]; then
+                    local branch=$(echo "$wt_info" | cut -d'|' -f1)
+                    local status=$(echo "$wt_info" | cut -d'|' -f2)
+                    printf "  • %-20s %s %s %s\\n" "$project/$worktree" "($branch)" "$status" "- $time_ago"
+                else
+                    printf "  • %-20s %s\\n" "$project/$worktree" "- $time_ago"
+                fi
+            else
+                printf "  • %-20s %s %s\\n" "$project/$worktree" "(deleted)" "- $time_ago"
+            fi
+            
+            count=$((count + 1))
+        done < <(tac "$recent_file" 2>/dev/null)
+        
+        if [[ $count -eq 0 ]]; then
+            echo "\\nNo recent worktrees found."
         fi
         
         return 0
@@ -389,6 +589,8 @@ w() {
     if [[ -z "$project" || -z "$worktree" ]]; then
         echo "Usage: w <project> <worktree> [command...]"
         echo "       w --list"
+        echo "       w --status [project]"
+        echo "       w --recent"
         echo "       w --rm <project> <worktree>"
         echo "       w --cleanup"
         echo "       w --version"
@@ -458,6 +660,35 @@ w() {
             return 1
         }
     fi
+    
+    # Helper function to track recent worktree usage
+    track_recent_usage() {
+        local project="$1"
+        local worktree="$2"
+        local recent_file="$HOME/.local/share/worktree-wrangler/recent"
+        local timestamp=$(date +%s)
+        
+        # Create directory if it doesn't exist
+        mkdir -p "$(dirname "$recent_file")"
+        
+        # Remove any existing entry for this worktree
+        if [[ -f "$recent_file" ]]; then
+            grep -v "|$project|$worktree$" "$recent_file" > "${recent_file}.tmp" 2>/dev/null || true
+            mv "${recent_file}.tmp" "$recent_file" 2>/dev/null || true
+        fi
+        
+        # Add new entry at the end
+        echo "$timestamp|$project|$worktree" >> "$recent_file"
+        
+        # Keep only last 50 entries
+        if [[ -f "$recent_file" ]]; then
+            tail -50 "$recent_file" > "${recent_file}.tmp" 2>/dev/null || true
+            mv "${recent_file}.tmp" "$recent_file" 2>/dev/null || true
+        fi
+    }
+    
+    # Track this worktree usage
+    track_recent_usage "$project" "$worktree"
     
     # Execute based on number of arguments
     if [[ ${#command[@]} -eq 0 ]]; then
