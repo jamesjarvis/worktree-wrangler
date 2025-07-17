@@ -20,8 +20,10 @@ setup() {
     # Copy worktree-wrangler script to test environment
     cp "$BATS_TEST_DIRNAME/../worktree-wrangler.zsh" "$TEST_HOME/"
     
-    # Source the w function in isolated environment
-    source "$TEST_HOME/worktree-wrangler.zsh"
+    # Create a helper function to run w commands in zsh
+    w() {
+        zsh -c "source '$TEST_HOME/worktree-wrangler.zsh'; w $*"
+    }
     
     # Create test git repo
     mkdir -p "$TEST_PROJECTS/testproject"
@@ -86,8 +88,8 @@ teardown() {
     # Verify worktree was created
     [ -d "$TEST_PROJECTS/worktrees/testproject/feature1" ]
     
-    # Verify it's a git worktree
-    [ -d "$TEST_PROJECTS/worktrees/testproject/feature1/.git" ]
+    # Verify it's a git worktree (worktrees have .git file, not directory)
+    [ -e "$TEST_PROJECTS/worktrees/testproject/feature1/.git" ]
 }
 
 @test "w --list shows created worktree" {
@@ -201,7 +203,10 @@ teardown() {
 }
 
 @test "w --list handles missing projects directory gracefully" {
-    w --config projects "/tmp/nonexistent-$$"
+    local nonexistent_dir="/tmp/nonexistent-$BATS_TEST_NUMBER"
+    
+    # Manually set config to point to nonexistent directory
+    echo "projects_dir=$nonexistent_dir" > "$TEST_HOME/.local/share/worktree-wrangler/config"
     
     run w --list
     [ "$status" -eq 1 ]

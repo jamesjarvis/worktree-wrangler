@@ -1,22 +1,24 @@
 FROM alpine:latest
 
-# Install zsh, git, and bash for testing
+# Install zsh, git, bash, and other tools for testing
 RUN apk add --no-cache \
     zsh \
     git \
     bash \
     curl \
-    jq
+    jq \
+    sudo
 
-# Set zsh as default shell
-RUN chsh -s /bin/zsh
-
-# Create test user to avoid running as root
-RUN adduser -D -s /bin/zsh testuser
+# Create test user with zsh as default shell
+RUN adduser -D -s /bin/zsh testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # Switch to test user
 USER testuser
 WORKDIR /home/testuser
+
+# Set USER environment variable
+ENV USER=testuser
 
 # Set up basic git config for testing
 RUN git config --global user.name "Test User" && \

@@ -24,19 +24,9 @@ jobs:
       run: |
         docker run --rm \
           -v "$PWD:/workspace" \
-          -w /workspace \
+          -w /workspace/tests \
           worktree-wrangler-test \
-          zsh -c "
-            # Install BATS if not available
-            if ! command -v bats >/dev/null 2>&1; then
-              git clone https://github.com/bats-core/bats-core.git /tmp/bats
-              sudo /tmp/bats/install.sh /usr/local
-            fi
-            
-            # Run tests
-            cd tests
-            bats tests.bats -t
-          "
+          zsh -c "bats tests.bats --tap"
           
     - name: Test with gh act (verify local compatibility)
       run: |
