@@ -5,29 +5,78 @@
 # Main worktree wrangler function
 w() {
     local VERSION="1.0.0"
-    local projects_dir="$HOME/projects"
-    local worktrees_dir="$HOME/projects/worktrees"
+    local config_file="$HOME/.local/share/worktree-wrangler/config"
+    
+    # Load configuration
+    local projects_dir="$HOME/development"  # Default
+    if [[ -f "$config_file" ]]; then
+        while IFS='=' read -r key value; do
+            case "$key" in
+                projects_dir) projects_dir="$value" ;;
+            esac
+        done < "$config_file"
+    fi
+    local worktrees_dir="$projects_dir/worktrees"
     
     # Handle special flags
     if [[ "$1" == "--list" ]]; then
         echo "=== All Worktrees ==="
+        echo "Configuration:"
+        echo "  Projects: $projects_dir"
+        echo "  Worktrees: $worktrees_dir"
+        echo ""
+        
+        # Check if projects directory exists
+        if [[ ! -d "$projects_dir" ]]; then
+            echo "❌ Projects directory not found: $projects_dir"
+            echo ""
+            echo "💡 To fix this, set your projects directory:"
+            echo "   w --config projects ~/your/projects/directory"
+            return 1
+        fi
+        
+        local found_any=false
+        
         # Check new location
         if [[ -d "$worktrees_dir" ]]; then
             for project in $worktrees_dir/*(/N); do
                 project_name=$(basename "$project")
                 echo "\\n[$project_name]"
+                local found_worktrees=false
                 for wt in $project/*(/N); do
                     echo "  • $(basename "$wt")"
+                    found_worktrees=true
+                    found_any=true
                 done
+                if [[ "$found_worktrees" == "false" ]]; then
+                    echo "  (no worktrees)"
+                fi
             done
         fi
+        
         # Also check old core-wts location
         if [[ -d "$projects_dir/core-wts" ]]; then
             echo "\\n[core] (legacy location)"
             for wt in $projects_dir/core-wts/*(/N); do
                 echo "  • $(basename "$wt")"
+                found_any=true
             done
         fi
+        
+        if [[ "$found_any" == "false" ]]; then
+            echo "\\nNo worktrees found."
+            echo ""
+            echo "💡 To create your first worktree:"
+            echo "   w <project> <worktree-name>"
+            echo ""
+            echo "💡 Available projects in $projects_dir:"
+            for dir in "$projects_dir"/*(/N); do
+                if [[ -d "$dir/.git" ]]; then
+                    echo "   • $(basename "$dir")"
+                fi
+            done
+        fi
+        
         return 0
     elif [[ "$1" == "--rm" ]]; then
         shift
@@ -214,6 +263,71 @@ w() {
         echo "✅ Successfully updated to version $latest_version"
         echo "Please restart your terminal or run: source ~/.zshrc"
         return 0
+    elif [[ "$1" == "--config" ]]; then
+        shift
+        local action="$1"
+        
+        if [[ -z "$action" ]]; then
+            echo "Usage: w --config <action>"
+            echo "Actions:"
+            echo "  projects <path>    Set projects directory"
+            echo "  list              Show current configuration"
+            echo "  reset             Reset to defaults"
+            return 1
+        fi
+        
+        case "$action" in
+            projects)
+                local new_path="$2"
+                if [[ -z "$new_path" ]]; then
+                    echo "Usage: w --config projects <path>"
+                    return 1
+                fi
+                
+                # Expand tilde and resolve path
+                new_path="${new_path/#\~/$HOME}"
+                new_path=$(realpath "$new_path" 2>/dev/null || echo "$new_path")
+                
+                if [[ ! -d "$new_path" ]]; then
+                    echo "Error: Directory does not exist: $new_path"
+                    return 1
+                fi
+                
+                # Create config directory if it doesn't exist
+                mkdir -p "$(dirname "$config_file")"
+                
+                # Write configuration
+                echo "projects_dir=$new_path" > "$config_file"
+                echo "✅ Set projects directory to: $new_path"
+                echo "Worktrees will be created in: $new_path/worktrees"
+                ;;
+            list)
+                echo "=== Configuration ==="
+                echo "Projects directory: $projects_dir"
+                echo "Worktrees directory: $worktrees_dir"
+                echo "Config file: $config_file"
+                if [[ -f "$config_file" ]]; then
+                    echo "✅ Config file exists"
+                else
+                    echo "⚠️  Using default configuration (no config file)"
+                fi
+                ;;
+            reset)
+                if [[ -f "$config_file" ]]; then
+                    rm "$config_file"
+                    echo "✅ Configuration reset to defaults"
+                    echo "Projects directory: $HOME/development"
+                else
+                    echo "⚠️  No configuration file to reset"
+                fi
+                ;;
+            *)
+                echo "Unknown action: $action"
+                echo "Available actions: projects, list, reset"
+                return 1
+                ;;
+        esac
+        return 0
     fi
     
     # Normal usage: w <project> <worktree> [command...]
@@ -229,12 +343,32 @@ w() {
         echo "       w --cleanup"
         echo "       w --version"
         echo "       w --update"
+        echo "       w --config <action>"
+        return 1
+    fi
+    
+    # Check if projects directory exists
+    if [[ ! -d "$projects_dir" ]]; then
+        echo "❌ Projects directory not found: $projects_dir"
+        echo ""
+        echo "💡 To fix this, set your projects directory:"
+        echo "   w --config projects ~/your/projects/directory"
+        echo ""
+        echo "💡 Or check current configuration:"
+        echo "   w --config list"
         return 1
     fi
     
     # Check if project exists
     if [[ ! -d "$projects_dir/$project" ]]; then
         echo "Project not found: $projects_dir/$project"
+        echo ""
+        echo "Available projects in $projects_dir:"
+        for dir in "$projects_dir"/*(/N); do
+            if [[ -d "$dir/.git" ]]; then
+                echo "  • $(basename "$dir")"
+            fi
+        done
         return 1
     fi
     

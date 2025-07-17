@@ -36,6 +36,15 @@ w --version
 
 # Update to latest version
 w --update
+
+# Configure projects directory
+w --config projects ~/development
+
+# Show current configuration
+w --config list
+
+# Reset configuration to defaults
+w --config reset
 ```
 
 ### Directory Structure
@@ -56,11 +65,22 @@ w --update
 
 ## Configuration
 
-Edit these variables in `~/.local/share/worktree-wrangler/worktree-wrangler.zsh`:
+Set your projects directory (where your git repos are located):
 
 ```bash
-local projects_dir="$HOME/projects"
-local worktrees_dir="$HOME/projects/worktrees"
+w --config projects ~/development
+```
+
+Check current configuration:
+
+```bash
+w --config list
+```
+
+Reset to defaults:
+
+```bash
+w --config reset
 ```
 
 ## Troubleshooting

@@ -9,11 +9,12 @@ _w() {
     
     # Define the main arguments
     _arguments -C \
-        '(--rm --cleanup --version --update)--list[List all worktrees]' \
-        '(--list --cleanup --version --update)--rm[Remove a worktree]' \
-        '(--list --rm --version --update)--cleanup[Clean up merged PR worktrees]' \
-        '(--list --rm --cleanup --update)--version[Show version]' \
-        '(--list --rm --cleanup --version)--update[Update to latest version]' \
+        '(--rm --cleanup --version --update --config)--list[List all worktrees]' \
+        '(--list --cleanup --version --update --config)--rm[Remove a worktree]' \
+        '(--list --rm --version --update --config)--cleanup[Clean up merged PR worktrees]' \
+        '(--list --rm --cleanup --update --config)--version[Show version]' \
+        '(--list --rm --cleanup --version --config)--update[Update to latest version]' \
+        '(--list --rm --cleanup --version --update)--config[Configure settings]' \
         '1: :->project' \
         '2: :->worktree' \
         '3: :->command' \
@@ -24,6 +25,16 @@ _w() {
         project)
             if [[ "${words[1]}" == "--list" || "${words[1]}" == "--cleanup" || "${words[1]}" == "--version" || "${words[1]}" == "--update" ]]; then
                 # No completion needed for these flags
+                return 0
+            elif [[ "${words[1]}" == "--config" ]]; then
+                # Complete config subcommands
+                local -a config_actions
+                config_actions=(
+                    'projects:Set projects directory'
+                    'list:Show current configuration'
+                    'reset:Reset to defaults'
+                )
+                _describe -t config_actions 'config action' config_actions
                 return 0
             fi
             
@@ -42,6 +53,12 @@ _w() {
             local project="${words[2]}"
             
             if [[ -z "$project" ]]; then
+                return 0
+            fi
+            
+            # Handle --config projects completion
+            if [[ "${words[1]}" == "--config" && "$project" == "projects" ]]; then
+                _directories
                 return 0
             fi
             
