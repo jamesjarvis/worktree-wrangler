@@ -2,6 +2,32 @@
 
 This file contains instructions for Claude (Anthropic's AI assistant) when working on the Worktree Wrangler repository. Follow these guidelines to maintain consistency and quality.
 
+## Git Commit and Release Management
+
+### Automated Git Commits
+
+**IMPORTANT**: Claude should make git commits automatically when making changes to this repository.
+
+**Commit Message Format**: `[AI] <message>`
+- All commit messages must start with `[AI]` prefix
+- Use clear, descriptive commit messages
+- Examples:
+  - `[AI] fix: resolve PR detection issue in cleanup command`
+  - `[AI] feat: add configuration persistence system`
+  - `[AI] docs: update README with new installation method`
+
+**Git Configuration**: Use the existing git user email (`james.jarvis@incident.io`)
+
+### Automated Releases
+
+**When to Create Releases**: Claude should automatically create new releases when making changes that warrant them according to semantic versioning.
+
+**Release Process**:
+1. Update version numbers in all required files
+2. Update CHANGELOG.md with new version entry
+3. Make git commit with version bump
+4. Create GitHub release using `gh release create`
+
 ## Version Management
 
 ### When to Update Versions
@@ -11,6 +37,8 @@ Follow [Semantic Versioning](https://semver.org/):
 - **MAJOR (X.0.0)**: Breaking changes, incompatible API changes
 - **MINOR (0.X.0)**: New functionality, backward compatible
 - **PATCH (0.0.X)**: Bug fixes, backward compatible
+
+**Automatic Version Updates**: Claude should proactively update versions when making meaningful changes and create corresponding releases.
 
 ### Version Update Process
 
