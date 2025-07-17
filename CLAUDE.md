@@ -26,7 +26,10 @@ This file contains instructions for Claude (Anthropic's AI assistant) when worki
 1. Update version numbers in all required files
 2. Update CHANGELOG.md with new version entry
 3. Make git commit with version bump
-4. Create GitHub release using `gh release create`
+4. **Push commits to GitHub** (`git push origin master`)
+5. Create GitHub release using `gh release create`
+
+**CRITICAL**: Always push commits before creating releases to ensure the release is attached to the correct commit.
 
 ## Version Management
 
