@@ -5,6 +5,25 @@ All notable changes to Worktree Wrangler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2025-07-23
+
+### Added
+- **New `--copy-pr-link` command** for copying PR links with size-based emoji prefixes
+- **Smart emoji selection** based on diff size: 🐜 ant (<50 lines), 🐭 mouse (50-150), 🐕 dog (150-600), 🦁 lion (600-2000), 🐋 whale (2000+)
+- **Flexible usage patterns**: `w --copy-pr-link` (current directory) or `w --copy-pr-link <project> <worktree>` (specific worktree)
+- **Cross-platform clipboard support** with automatic detection of pbcopy, xclip, or wl-copy
+- **Enhanced tab completion** for the new --copy-pr-link command
+
+### Changed
+- Improved error handling: warnings instead of errors for non-worktree directories when using `--copy-pr-link`
+- Enhanced git repository detection logic to work with both regular repos and worktrees
+
+### Technical Details
+- Uses robust 4-method PR detection system from existing --cleanup command
+- Generates markdown-formatted links: `[emoji] [PR Title](PR_URL)`
+- Supports both legacy and modern worktree directory structures
+- Graceful fallback when clipboard utilities are unavailable
+
 ## [1.3.3] - 2025-07-17
 
 ### Added

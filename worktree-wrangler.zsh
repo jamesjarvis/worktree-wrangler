@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.3.3
+# Version: 1.3.4
 
 # Color definitions for beautiful output
 local -A COLORS
@@ -17,7 +17,7 @@ COLORS[NC]='\033[0m'  # No Color
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.3.3"
+    local VERSION="1.3.4"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
@@ -472,6 +472,252 @@ w() {
         echo "Worktrees checked: $total_checked"
         echo "Worktrees cleaned: $cleaned_count"
         return 0
+    elif [[ "$1" == "--copy-pr-link" ]]; then
+        shift
+        
+        # Check if gh CLI is available
+        if ! command -v gh &> /dev/null; then
+            echo -e "${COLORS[RED]}❌ Error: GitHub CLI (gh) is not installed or not in PATH${COLORS[NC]}"
+            echo "Please install it from: https://cli.github.com/"
+            return 1
+        fi
+        
+        # Check if gh is authenticated
+        if ! gh auth status &> /dev/null; then
+            echo -e "${COLORS[RED]}❌ Error: GitHub CLI is not authenticated${COLORS[NC]}"
+            echo "Please run: gh auth login"
+            return 1
+        fi
+        
+        local target_project="$1"
+        local target_worktree="$2"
+        local wt_path=""
+        local project_path=""
+        
+        if [[ -n "$target_project" && -n "$target_worktree" ]]; then
+            # Specific worktree provided - use same logic as --rm command
+            
+            # Check if project exists
+            if [[ ! -d "$projects_dir/$target_project" ]]; then
+                echo -e "${COLORS[RED]}❌ Project not found: $projects_dir/$target_project${COLORS[NC]}"
+                echo ""
+                echo "Available projects in $projects_dir:"
+                for dir in "$projects_dir"/*(/N); do
+                    if [[ -d "$dir/.git" ]]; then
+                        echo "  • $(basename "$dir")"
+                    fi
+                done
+                return 1
+            fi
+            
+            project_path="$projects_dir/$target_project"
+            
+            # Check both locations for core
+            if [[ "$target_project" == "core" && -d "$projects_dir/core-wts/$target_worktree" ]]; then
+                wt_path="$projects_dir/core-wts/$target_worktree"
+            elif [[ -d "$worktrees_dir/$target_project/$target_worktree" ]]; then
+                wt_path="$worktrees_dir/$target_project/$target_worktree"
+            else
+                echo -e "${COLORS[RED]}❌ Worktree not found: $target_project/$target_worktree${COLORS[NC]}"
+                return 1
+            fi
+        else
+            # No arguments - use current working directory
+            wt_path="$PWD"
+            
+            # Check if current directory is a git worktree
+            if [[ ! -e "$wt_path/.git" ]]; then
+                echo -e "${COLORS[YELLOW]}⚠️  Warning: Current directory is not a git worktree${COLORS[NC]}"
+                echo -e "${COLORS[DIM]}Will attempt to find PR from current git repository${COLORS[NC]}"
+                
+                # Try to find if we're in a git repository at all
+                if ! git rev-parse --git-dir >/dev/null 2>&1; then
+                    echo -e "${COLORS[RED]}❌ Current directory is not in a git repository${COLORS[NC]}"
+                    echo ""
+                    echo -e "${COLORS[YELLOW]}💡 Usage:${COLORS[NC]}"
+                    echo "  • Run from a git repository: ${COLORS[GREEN]}w --copy-pr-link${COLORS[NC]}"
+                    echo "  • Or specify worktree: ${COLORS[GREEN]}w --copy-pr-link <project> <worktree>${COLORS[NC]}"
+                    return 1
+                fi
+            fi
+            
+            # Find the project directory by looking for the main repo
+            # Try to find the main git directory from worktree or regular repo
+            local git_dir
+            git_dir=$(cd "$wt_path" && git rev-parse --git-common-dir 2>/dev/null)
+            if [[ -n "$git_dir" && -d "$git_dir" ]]; then
+                # Get the parent directory of .git as the project path
+                project_path=$(dirname "$git_dir")
+            else
+                # If git-common-dir fails, try regular git-dir (for regular repos)
+                git_dir=$(cd "$wt_path" && git rev-parse --git-dir 2>/dev/null)
+                if [[ -n "$git_dir" ]]; then
+                    if [[ "$git_dir" == ".git" ]]; then
+                        # Regular repo, use current directory as project path
+                        project_path="$wt_path"
+                    else
+                        # Absolute path to .git directory
+                        project_path=$(dirname "$git_dir")
+                    fi
+                else
+                    echo -e "${COLORS[RED]}❌ Could not determine project directory${COLORS[NC]}"
+                    return 1
+                fi
+            fi
+        fi
+        
+        echo -e "${COLORS[CYAN]}${COLORS[BOLD]}🔗 === Copying PR Link ===${COLORS[NC]}"
+        echo -e "${COLORS[DIM]}Working directory: $wt_path${COLORS[NC]}"
+        
+        # Get the branch name for this worktree
+        local branch_name
+        branch_name=$(cd "$wt_path" && git branch --show-current 2>/dev/null)
+        if [[ -z "$branch_name" ]]; then
+            echo -e "${COLORS[RED]}❌ Could not determine branch name${COLORS[NC]}"
+            return 1
+        fi
+        
+        echo -e "${COLORS[DIM]}Branch: $branch_name${COLORS[NC]}"
+        
+        # Detect PR using robust detection logic (reusing from --cleanup)
+        local pr_info=""
+        
+        # Method 1: Try different branch formats
+        for branch_format in "$branch_name" "origin/$branch_name" "${branch_name#*/}"; do
+            pr_info=$(cd "$project_path" && gh pr list --head "$branch_format" --json number,state,headRefName,title,url 2>/dev/null)
+            if [[ -n "$pr_info" && "$pr_info" != "[]" ]]; then
+                break
+            fi
+        done
+        
+        # Method 2: gh pr status from worktree (context-aware)
+        if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+            pr_info=$(cd "$wt_path" && gh pr status --json number,state,headRefName,title,url 2>/dev/null)
+        fi
+        
+        # Method 3: List all PRs and filter (most flexible)
+        if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+            local all_prs=$(cd "$project_path" && gh pr list --json number,state,headRefName,title,url 2>/dev/null)
+            if [[ -n "$all_prs" && "$all_prs" != "[]" ]]; then
+                # Try exact match first
+                pr_info=$(echo "$all_prs" | jq --arg branch "$branch_name" '.[] | select(.headRefName == $branch)')
+                if [[ -z "$pr_info" || "$pr_info" == "null" ]]; then
+                    # Try partial match
+                    pr_info=$(echo "$all_prs" | jq --arg branch "$branch_name" '.[] | select(.headRefName | contains($branch))')
+                fi
+                if [[ -z "$pr_info" || "$pr_info" == "null" ]]; then
+                    # Try without username prefix
+                    local short_branch="${branch_name#*/}"
+                    pr_info=$(echo "$all_prs" | jq --arg branch "$short_branch" '.[] | select(.headRefName | contains($branch))')
+                fi
+                if [[ -z "$pr_info" || "$pr_info" == "null" ]]; then
+                    pr_info=""
+                fi
+            fi
+        fi
+        
+        # Method 4: Commit-based lookup (most reliable)
+        if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+            local current_commit=$(cd "$wt_path" && git rev-parse HEAD 2>/dev/null)
+            if [[ -n "$current_commit" ]]; then
+                pr_info=$(cd "$project_path" && gh pr list --search "sha:$current_commit" --json number,state,headRefName,title,url 2>/dev/null)
+            fi
+        fi
+        
+        # Check if PR was found
+        if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+            echo -e "${COLORS[RED]}❌ No PR found for branch: $branch_name${COLORS[NC]}"
+            echo ""
+            echo -e "${COLORS[YELLOW]}💡 Make sure you have created a PR for this branch${COLORS[NC]}"
+            return 1
+        fi
+        
+        # Extract PR information using smart parsing
+        local pr_number=""
+        local pr_title=""
+        local pr_url=""
+        
+        # Check if it's gh pr status format (has currentBranch)
+        if echo "$pr_info" | jq -e '.currentBranch' >/dev/null 2>&1; then
+            pr_number=$(echo "$pr_info" | jq -r '.currentBranch.number')
+            pr_title=$(echo "$pr_info" | jq -r '.currentBranch.title')
+            pr_url=$(echo "$pr_info" | jq -r '.currentBranch.url')
+        # Check if it's an array
+        elif echo "$pr_info" | jq -e '.[0]' >/dev/null 2>&1; then
+            pr_number=$(echo "$pr_info" | jq -r '.[0].number')
+            pr_title=$(echo "$pr_info" | jq -r '.[0].title')
+            pr_url=$(echo "$pr_info" | jq -r '.[0].url')
+        # Check if it's a single object
+        elif echo "$pr_info" | jq -e '.number' >/dev/null 2>&1; then
+            pr_number=$(echo "$pr_info" | jq -r '.number')
+            pr_title=$(echo "$pr_info" | jq -r '.title')
+            pr_url=$(echo "$pr_info" | jq -r '.url')
+        fi
+        
+        if [[ -z "$pr_number" || "$pr_number" == "null" ]]; then
+            echo -e "${COLORS[RED]}❌ Could not extract PR information${COLORS[NC]}"
+            return 1
+        fi
+        
+        echo -e "${COLORS[GREEN]}✅ Found PR #$pr_number${COLORS[NC]}"
+        echo -e "${COLORS[DIM]}Title: $pr_title${COLORS[NC]}"
+        
+        # Get PR diff to calculate size and determine emoji
+        echo -e "${COLORS[DIM]}Calculating diff size...${COLORS[NC]}"
+        local pr_diff
+        pr_diff=$(cd "$project_path" && gh pr diff "$pr_number" 2>/dev/null)
+        
+        if [[ -z "$pr_diff" ]]; then
+            echo -e "${COLORS[YELLOW]}⚠️  Could not get PR diff, using default emoji${COLORS[NC]}"
+            local emoji="🐕"  # Default to dog
+        else
+            # Count lines that start with + or - (but not +++ or ---)
+            local added_lines=$(echo "$pr_diff" | grep "^+" | grep -v "^+++" | wc -l | tr -d ' ')
+            local removed_lines=$(echo "$pr_diff" | grep "^-" | grep -v "^---" | wc -l | tr -d ' ')
+            local total_changes=$((added_lines + removed_lines))
+            
+            echo -e "${COLORS[DIM]}Diff size: +$added_lines -$removed_lines (total: $total_changes lines)${COLORS[NC]}"
+            
+            # Select emoji based on diff size
+            local emoji
+            if [[ $total_changes -lt 50 ]]; then
+                emoji="🐜"  # ant
+            elif [[ $total_changes -lt 150 ]]; then
+                emoji="🐭"  # mouse
+            elif [[ $total_changes -lt 600 ]]; then
+                emoji="🐕"  # dog
+            elif [[ $total_changes -lt 2000 ]]; then
+                emoji="🦁"  # lion
+            else
+                emoji="🐋"  # whale
+            fi
+        fi
+        
+        # Format the markdown link
+        local formatted_link="$emoji [$pr_title]($pr_url)"
+        
+        echo -e "${COLORS[GREEN]}📋 Formatted link:${COLORS[NC]} $formatted_link"
+        
+        # Copy to clipboard with cross-platform support
+        if command -v pbcopy &> /dev/null; then
+            echo -n "$formatted_link" | pbcopy
+            echo -e "${COLORS[GREEN]}✅ Copied to clipboard!${COLORS[NC]}"
+        elif command -v xclip &> /dev/null; then
+            echo -n "$formatted_link" | xclip -selection clipboard
+            echo -e "${COLORS[GREEN]}✅ Copied to clipboard!${COLORS[NC]}"
+        elif command -v wl-copy &> /dev/null; then
+            echo -n "$formatted_link" | wl-copy
+            echo -e "${COLORS[GREEN]}✅ Copied to clipboard!${COLORS[NC]}"
+        else
+            echo -e "${COLORS[YELLOW]}⚠️  No clipboard utility found${COLORS[NC]}"
+            echo -e "${COLORS[YELLOW]}Please install pbcopy (macOS), xclip (Linux), or wl-clipboard (Wayland)${COLORS[NC]}"
+            echo ""
+            echo -e "${COLORS[CYAN]}You can manually copy this link:${COLORS[NC]}"
+            echo "$formatted_link"
+            return 1
+        fi
+        
+        return 0
     elif [[ "$1" == "--version" ]]; then
         echo -e "${COLORS[PURPLE]}${COLORS[BOLD]}🚀 Worktree Wrangler${COLORS[NC]} ${COLORS[GREEN]}v$VERSION${COLORS[NC]}"
         return 0
@@ -609,6 +855,7 @@ w() {
         echo "       w --recent"
         echo "       w --rm <project> <worktree>"
         echo "       w --cleanup"
+        echo "       w --copy-pr-link [project] [worktree]"
         echo "       w --version"
         echo "       w --update"
         echo "       w --config <action>"

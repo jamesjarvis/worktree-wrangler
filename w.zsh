@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # Multi-project worktree manager with Claude support
-# Version: 1.3.3
+# Version: 1.3.4
 # NOTE: The version is also defined in the VERSION variable inside the w() function
 # 
 # ASSUMPTIONS & SETUP:
@@ -56,7 +56,7 @@
 
 # Multi-project worktree manager
 w() {
-    local VERSION="1.3.3"
+    local VERSION="1.3.4"
     local projects_dir="$HOME/projects"
     local worktrees_dir="$HOME/projects/worktrees"
     
@@ -207,6 +207,190 @@ w() {
         echo "Worktrees checked: $total_checked"
         echo "Worktrees cleaned: $cleaned_count"
         return 0
+    elif [[ "$1" == "--copy-pr-link" ]]; then
+        shift
+        
+        # Check if gh CLI is available
+        if ! command -v gh &> /dev/null; then
+            echo "❌ Error: GitHub CLI (gh) is not installed or not in PATH"
+            echo "Please install it from: https://cli.github.com/"
+            return 1
+        fi
+        
+        # Check if gh is authenticated
+        if ! gh auth status &> /dev/null; then
+            echo "❌ Error: GitHub CLI is not authenticated"
+            echo "Please run: gh auth login"
+            return 1
+        fi
+        
+        local target_project="$1"
+        local target_worktree="$2"
+        local wt_path=""
+        local project_path=""
+        
+        if [[ -n "$target_project" && -n "$target_worktree" ]]; then
+            # Specific worktree provided
+            if [[ ! -d "$projects_dir/$target_project" ]]; then
+                echo "❌ Project not found: $projects_dir/$target_project"
+                return 1
+            fi
+            
+            project_path="$projects_dir/$target_project"
+            
+            # Check both locations for core
+            if [[ "$target_project" == "core" && -d "$projects_dir/core-wts/$target_worktree" ]]; then
+                wt_path="$projects_dir/core-wts/$target_worktree"
+            elif [[ -d "$worktrees_dir/$target_project/$target_worktree" ]]; then
+                wt_path="$worktrees_dir/$target_project/$target_worktree"
+            else
+                echo "❌ Worktree not found: $target_project/$target_worktree"
+                return 1
+            fi
+        else
+            # No arguments - use current working directory
+            wt_path="$PWD"
+            
+            # Check if current directory is a git worktree
+            if [[ ! -e "$wt_path/.git" ]]; then
+                echo "⚠️  Warning: Current directory is not a git worktree"
+                echo "Will attempt to find PR from current git repository"
+                
+                # Try to find if we're in a git repository at all
+                if ! git rev-parse --git-dir >/dev/null 2>&1; then
+                    echo "❌ Current directory is not in a git repository"
+                    echo ""
+                    echo "💡 Usage:"
+                    echo "  • Run from a git repository: w --copy-pr-link"
+                    echo "  • Or specify worktree: w --copy-pr-link <project> <worktree>"
+                    return 1
+                fi
+            fi
+            
+            # Find the project directory by looking for the main repo
+            # Try to find the main git directory from worktree or regular repo
+            local git_dir
+            git_dir=$(cd "$wt_path" && git rev-parse --git-common-dir 2>/dev/null)
+            if [[ -n "$git_dir" && -d "$git_dir" ]]; then
+                # Get the parent directory of .git as the project path
+                project_path=$(dirname "$git_dir")
+            else
+                # If git-common-dir fails, try regular git-dir (for regular repos)
+                git_dir=$(cd "$wt_path" && git rev-parse --git-dir 2>/dev/null)
+                if [[ -n "$git_dir" ]]; then
+                    if [[ "$git_dir" == ".git" ]]; then
+                        # Regular repo, use current directory as project path
+                        project_path="$wt_path"
+                    else
+                        # Absolute path to .git directory
+                        project_path=$(dirname "$git_dir")
+                    fi
+                else
+                    echo "❌ Could not determine project directory"
+                    return 1
+                fi
+            fi
+        fi
+        
+        echo "🔗 === Copying PR Link ==="
+        
+        # Get the branch name for this worktree
+        local branch_name
+        branch_name=$(cd "$wt_path" && git branch --show-current 2>/dev/null)
+        if [[ -z "$branch_name" ]]; then
+            echo "❌ Could not determine branch name"
+            return 1
+        fi
+        
+        echo "Branch: $branch_name"
+        
+        # Detect PR using robust detection logic
+        local pr_info=""
+        
+        # Try different branch formats
+        for branch_format in "$branch_name" "origin/$branch_name" "${branch_name#*/}"; do
+            pr_info=$(cd "$project_path" && gh pr list --head "$branch_format" --json number,state,headRefName,title,url 2>/dev/null)
+            if [[ -n "$pr_info" && "$pr_info" != "[]" ]]; then
+                break
+            fi
+        done
+        
+        # Check if PR was found
+        if [[ -z "$pr_info" || "$pr_info" == "[]" ]]; then
+            echo "❌ No PR found for branch: $branch_name"
+            echo "💡 Make sure you have created a PR for this branch"
+            return 1
+        fi
+        
+        # Extract PR information
+        local pr_number=$(echo "$pr_info" | jq -r '.[0].number')
+        local pr_title=$(echo "$pr_info" | jq -r '.[0].title')
+        local pr_url=$(echo "$pr_info" | jq -r '.[0].url')
+        
+        if [[ -z "$pr_number" || "$pr_number" == "null" ]]; then
+            echo "❌ Could not extract PR information"
+            return 1
+        fi
+        
+        echo "✅ Found PR #$pr_number"
+        echo "Title: $pr_title"
+        
+        # Get PR diff to calculate size and determine emoji
+        echo "Calculating diff size..."
+        local pr_diff
+        pr_diff=$(cd "$project_path" && gh pr diff "$pr_number" 2>/dev/null)
+        
+        if [[ -z "$pr_diff" ]]; then
+            echo "⚠️  Could not get PR diff, using default emoji"
+            local emoji="🐕"  # Default to dog
+        else
+            # Count lines that start with + or - (but not +++ or ---)
+            local added_lines=$(echo "$pr_diff" | grep "^+" | grep -v "^+++" | wc -l | tr -d ' ')
+            local removed_lines=$(echo "$pr_diff" | grep "^-" | grep -v "^---" | wc -l | tr -d ' ')
+            local total_changes=$((added_lines + removed_lines))
+            
+            echo "Diff size: +$added_lines -$removed_lines (total: $total_changes lines)"
+            
+            # Select emoji based on diff size
+            local emoji
+            if [[ $total_changes -lt 50 ]]; then
+                emoji="🐜"  # ant
+            elif [[ $total_changes -lt 150 ]]; then
+                emoji="🐭"  # mouse
+            elif [[ $total_changes -lt 600 ]]; then
+                emoji="🐕"  # dog
+            elif [[ $total_changes -lt 2000 ]]; then
+                emoji="🦁"  # lion
+            else
+                emoji="🐋"  # whale
+            fi
+        fi
+        
+        # Format the markdown link
+        local formatted_link="$emoji [$pr_title]($pr_url)"
+        
+        echo "📋 Formatted link: $formatted_link"
+        
+        # Copy to clipboard with cross-platform support
+        if command -v pbcopy &> /dev/null; then
+            echo -n "$formatted_link" | pbcopy
+            echo "✅ Copied to clipboard!"
+        elif command -v xclip &> /dev/null; then
+            echo -n "$formatted_link" | xclip -selection clipboard
+            echo "✅ Copied to clipboard!"
+        elif command -v wl-copy &> /dev/null; then
+            echo -n "$formatted_link" | wl-copy
+            echo "✅ Copied to clipboard!"
+        else
+            echo "⚠️  No clipboard utility found"
+            echo "Please install pbcopy (macOS), xclip (Linux), or wl-clipboard (Wayland)"
+            echo ""
+            echo "You can manually copy this link:"
+            echo "$formatted_link"
+            return 1
+        fi
+        
+        return 0
     elif [[ "$1" == "--version" ]]; then
         echo "Worktree Wrangler v$VERSION"
         return 0
@@ -289,6 +473,7 @@ w() {
         echo "       w --list"
         echo "       w --rm <project> <worktree>"
         echo "       w --cleanup"
+        echo "       w --copy-pr-link [project] [worktree]"
         echo "       w --version"
         echo "       w --update"
         return 1

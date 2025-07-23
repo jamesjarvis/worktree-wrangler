@@ -9,14 +9,15 @@ _w() {
     
     # Define the main arguments
     _arguments -C \
-        '(--rm --cleanup --version --update --config --status --recent)--list[List all worktrees]' \
-        '(--list --cleanup --version --update --config --recent)--status[Show git status for worktrees]' \
-        '(--list --rm --cleanup --version --update --config --status)--recent[Show recently used worktrees]' \
-        '(--list --cleanup --version --update --config --status --recent)--rm[Remove a worktree]' \
-        '(--list --rm --version --update --config --status --recent)--cleanup[Clean up merged PR worktrees]' \
-        '(--list --rm --cleanup --update --config --status --recent)--version[Show version]' \
-        '(--list --rm --cleanup --version --config --status --recent)--update[Update to latest version]' \
-        '(--list --rm --cleanup --version --update --status --recent)--config[Configure settings]' \
+        '(--rm --cleanup --copy-pr-link --version --update --config --status --recent)--list[List all worktrees]' \
+        '(--list --cleanup --copy-pr-link --version --update --config --recent)--status[Show git status for worktrees]' \
+        '(--list --rm --cleanup --copy-pr-link --version --update --config --status)--recent[Show recently used worktrees]' \
+        '(--list --cleanup --copy-pr-link --version --update --config --status --recent)--rm[Remove a worktree]' \
+        '(--list --rm --copy-pr-link --version --update --config --status --recent)--cleanup[Clean up merged PR worktrees]' \
+        '(--list --rm --cleanup --version --update --config --status --recent)--copy-pr-link[Copy PR link with emoji]' \
+        '(--list --rm --cleanup --copy-pr-link --update --config --status --recent)--version[Show version]' \
+        '(--list --rm --cleanup --copy-pr-link --version --config --status --recent)--update[Update to latest version]' \
+        '(--list --rm --cleanup --copy-pr-link --version --update --status --recent)--config[Configure settings]' \
         '1: :->project' \
         '2: :->worktree' \
         '3: :->command' \
@@ -28,6 +29,17 @@ _w() {
             if [[ "${words[1]}" == "--list" || "${words[1]}" == "--cleanup" || "${words[1]}" == "--version" || "${words[1]}" == "--update" || "${words[1]}" == "--recent" ]]; then
                 # No completion needed for these flags
                 return 0
+            elif [[ "${words[1]}" == "--copy-pr-link" ]]; then
+                # Complete project names for --copy-pr-link (optional)
+                local -a projects
+                if [[ -d "$projects_dir" ]]; then
+                    for dir in "$projects_dir"/*; do
+                        if [[ -d "$dir" && -d "$dir/.git" ]]; then
+                            projects+=(${dir:t})
+                        fi
+                    done
+                fi
+                _describe -t projects 'project (optional)' projects && return 0
             elif [[ "${words[1]}" == "--status" ]]; then
                 # Complete project names for --status
                 local -a projects
@@ -74,6 +86,51 @@ _w() {
             # Handle --config projects completion
             if [[ "${words[1]}" == "--config" && "$project" == "projects" ]]; then
                 _directories
+                return 0
+            fi
+            
+            # Handle --copy-pr-link completion (similar to --rm)
+            if [[ "${words[1]}" == "--copy-pr-link" ]]; then
+                # Same logic as --rm for worktree completion
+                local -a worktrees
+                
+                # For core project, check both old and new locations
+                if [[ "$project" == "core" ]]; then
+                    # Check old location
+                    if [[ -d "$projects_dir/core-wts" ]]; then
+                        for wt in "$projects_dir/core-wts"/*; do
+                            if [[ -d "$wt" ]]; then
+                                worktrees+=(${wt:t})
+                            fi
+                        done
+                    fi
+                    # Check new location
+                    if [[ -d "$worktrees_dir/core" ]]; then
+                        for wt in "$worktrees_dir/core"/*; do
+                            if [[ -d "$wt" ]]; then
+                                # Avoid duplicates
+                                if [[ ! " ${worktrees[@]} " =~ " ${wt:t} " ]]; then
+                                    worktrees+=(${wt:t})
+                                fi
+                            fi
+                        done
+                    fi
+                else
+                    # For other projects, check new location only
+                    if [[ -d "$worktrees_dir/$project" ]]; then
+                        for wt in "$worktrees_dir/$project"/*; do
+                            if [[ -d "$wt" ]]; then
+                                worktrees+=(${wt:t})
+                            fi
+                        done
+                    fi
+                fi
+                
+                if (( ${#worktrees} > 0 )); then
+                    _describe -t worktrees 'existing worktree' worktrees
+                else
+                    _message 'worktree name'
+                fi
                 return 0
             fi
             
