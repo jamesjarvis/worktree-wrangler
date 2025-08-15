@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.3.4
+# Version: 1.4.0
 
 # Color definitions for beautiful output
 local -A COLORS
@@ -17,19 +17,59 @@ COLORS[NC]='\033[0m'  # No Color
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.3.4"
+    local VERSION="1.4.0"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
     local projects_dir="$HOME/development"  # Default
+    local setup_script=""
+    local archive_script=""
     if [[ -f "$config_file" ]]; then
         while IFS='=' read -r key value; do
             case "$key" in
                 projects_dir) projects_dir="$value" ;;
+                setup_script) setup_script="$value" ;;
+                archive_script) archive_script="$value" ;;
             esac
         done < "$config_file"
     fi
     local worktrees_dir="$projects_dir/worktrees"
+    
+    # Helper function to run archive script before worktree removal
+    run_archive_script() {
+        local project="$1"
+        local worktree_name="$2"
+        local worktree_path="$3"
+        
+        if [[ -n "$archive_script" && -f "$archive_script" && -x "$archive_script" ]]; then
+            echo -e "${COLORS[CYAN]}📦 Running archive script...${COLORS[NC]}"
+            
+            # Get default branch name for the project
+            local default_branch
+            default_branch=$(cd "$projects_dir/$project" && git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+            if [[ -z "$default_branch" ]]; then
+                default_branch="main"  # fallback
+            fi
+            
+            # Set environment variables for the archive script
+            local archive_exit_code=0
+            (
+                export W_WORKSPACE_NAME="$worktree_name"
+                export W_WORKSPACE_PATH="$worktree_path"
+                export W_ROOT_PATH="$projects_dir/$project"
+                export W_DEFAULT_BRANCH="$default_branch"
+                
+                cd "$worktree_path" 2>/dev/null || cd "$projects_dir/$project"
+                "$archive_script"
+            ) || archive_exit_code=$?
+            
+            if [[ $archive_exit_code -eq 0 ]]; then
+                echo -e "${COLORS[GREEN]}✅ Archive script completed successfully${COLORS[NC]}"
+            else
+                echo -e "${COLORS[YELLOW]}⚠️  Archive script exited with code $archive_exit_code${COLORS[NC]}"
+            fi
+        fi
+    }
     
     # Helper function to get worktree information
     get_worktree_info() {
@@ -304,13 +344,16 @@ w() {
         fi
         # Check both locations for core
         if [[ "$project" == "core" && -d "$projects_dir/core-wts/$worktree" ]]; then
-            (cd "$projects_dir/$project" && git worktree remove "$projects_dir/core-wts/$worktree")
+            local wt_path="$projects_dir/core-wts/$worktree"
+            run_archive_script "$project" "$worktree" "$wt_path"
+            (cd "$projects_dir/$project" && git worktree remove "$wt_path")
         else
             local wt_path="$worktrees_dir/$project/$worktree"
             if [[ ! -d "$wt_path" ]]; then
                 echo "Worktree not found: $wt_path"
                 return 1
             fi
+            run_archive_script "$project" "$worktree" "$wt_path"
             (cd "$projects_dir/$project" && git worktree remove "$wt_path")
         fi
         return $?
@@ -434,6 +477,7 @@ w() {
             
             # All checks passed - remove the worktree
             echo "  ✅ Removing worktree (PR merged, no unpushed commits)"
+            run_archive_script "$project" "$worktree_name" "$worktree_path"
             if (cd "$projects_dir/$project" && git worktree remove "$worktree_path" 2>/dev/null); then
                 cleaned_count=$((cleaned_count + 1))
                 echo "  ✅ Successfully removed"
@@ -784,9 +828,11 @@ w() {
         if [[ -z "$action" ]]; then
             echo "Usage: w --config <action>"
             echo "Actions:"
-            echo "  projects <path>    Set projects directory"
-            echo "  list              Show current configuration"
-            echo "  reset             Reset to defaults"
+            echo "  projects <path>         Set projects directory"
+            echo "  setup_script <path>     Set setup script to run on worktree creation"
+            echo "  archive_script <path>   Set archive script to run on worktree removal"
+            echo "  list                    Show current configuration"
+            echo "  reset                   Reset to defaults"
             return 1
         fi
         
@@ -815,10 +861,116 @@ w() {
                 echo "✅ Set projects directory to: $new_path"
                 echo "Worktrees will be created in: $new_path/worktrees"
                 ;;
+            setup_script)
+                local script_path="$2"
+                if [[ -z "$script_path" ]]; then
+                    echo "Usage: w --config setup_script <path>"
+                    echo "       w --config setup_script \"\" (to clear)"
+                    return 1
+                fi
+                
+                # Handle clearing the script
+                if [[ "$script_path" == "" ]]; then
+                    # Create config directory if it doesn't exist
+                    mkdir -p "$(dirname "$config_file")"
+                    
+                    # Remove setup_script line from config
+                    if [[ -f "$config_file" ]]; then
+                        grep -v "^setup_script=" "$config_file" > "${config_file}.tmp" 2>/dev/null || true
+                        mv "${config_file}.tmp" "$config_file" 2>/dev/null || true
+                    fi
+                    echo "✅ Cleared setup script"
+                    return 0
+                fi
+                
+                # Expand tilde and resolve path
+                script_path="${script_path/#\~/$HOME}"
+                script_path=$(realpath "$script_path" 2>/dev/null || echo "$script_path")
+                
+                if [[ ! -f "$script_path" ]]; then
+                    echo "Error: Script file does not exist: $script_path"
+                    return 1
+                fi
+                
+                if [[ ! -x "$script_path" ]]; then
+                    echo "Error: Script file is not executable: $script_path"
+                    echo "Run: chmod +x $script_path"
+                    return 1
+                fi
+                
+                # Create config directory if it doesn't exist
+                mkdir -p "$(dirname "$config_file")"
+                
+                # Update or add setup_script to config
+                if [[ -f "$config_file" ]]; then
+                    grep -v "^setup_script=" "$config_file" > "${config_file}.tmp" 2>/dev/null || true
+                    mv "${config_file}.tmp" "$config_file" 2>/dev/null || true
+                fi
+                echo "setup_script=$script_path" >> "$config_file"
+                echo "✅ Set setup script to: $script_path"
+                ;;
+            archive_script)
+                local script_path="$2"
+                if [[ -z "$script_path" ]]; then
+                    echo "Usage: w --config archive_script <path>"
+                    echo "       w --config archive_script \"\" (to clear)"
+                    return 1
+                fi
+                
+                # Handle clearing the script
+                if [[ "$script_path" == "" ]]; then
+                    # Create config directory if it doesn't exist
+                    mkdir -p "$(dirname "$config_file")"
+                    
+                    # Remove archive_script line from config
+                    if [[ -f "$config_file" ]]; then
+                        grep -v "^archive_script=" "$config_file" > "${config_file}.tmp" 2>/dev/null || true
+                        mv "${config_file}.tmp" "$config_file" 2>/dev/null || true
+                    fi
+                    echo "✅ Cleared archive script"
+                    return 0
+                fi
+                
+                # Expand tilde and resolve path
+                script_path="${script_path/#\~/$HOME}"
+                script_path=$(realpath "$script_path" 2>/dev/null || echo "$script_path")
+                
+                if [[ ! -f "$script_path" ]]; then
+                    echo "Error: Script file does not exist: $script_path"
+                    return 1
+                fi
+                
+                if [[ ! -x "$script_path" ]]; then
+                    echo "Error: Script file is not executable: $script_path"
+                    echo "Run: chmod +x $script_path"
+                    return 1
+                fi
+                
+                # Create config directory if it doesn't exist
+                mkdir -p "$(dirname "$config_file")"
+                
+                # Update or add archive_script to config
+                if [[ -f "$config_file" ]]; then
+                    grep -v "^archive_script=" "$config_file" > "${config_file}.tmp" 2>/dev/null || true
+                    mv "${config_file}.tmp" "$config_file" 2>/dev/null || true
+                fi
+                echo "archive_script=$script_path" >> "$config_file"
+                echo "✅ Set archive script to: $script_path"
+                ;;
             list)
                 echo "=== Configuration ==="
                 echo "Projects directory: $projects_dir"
                 echo "Worktrees directory: $worktrees_dir"
+                if [[ -n "$setup_script" ]]; then
+                    echo "Setup script: $setup_script"
+                else
+                    echo "Setup script: (not set)"
+                fi
+                if [[ -n "$archive_script" ]]; then
+                    echo "Archive script: $archive_script"
+                else
+                    echo "Archive script: (not set)"
+                fi
                 echo "Config file: $config_file"
                 if [[ -f "$config_file" ]]; then
                     echo "✅ Config file exists"
@@ -837,7 +989,7 @@ w() {
                 ;;
             *)
                 echo "Unknown action: $action"
-                echo "Available actions: projects, list, reset"
+                echo "Available actions: projects, setup_script, archive_script, list, reset"
                 return 1
                 ;;
         esac
@@ -923,6 +1075,36 @@ w() {
             return 1
         }
         echo -e "${COLORS[GREEN]}✅ Worktree created successfully!${COLORS[NC]}"
+        
+        # Run setup script if configured
+        if [[ -n "$setup_script" && -f "$setup_script" && -x "$setup_script" ]]; then
+            echo -e "${COLORS[CYAN]}🚀 Running setup script...${COLORS[NC]}"
+            
+            # Get default branch name for the project
+            local default_branch
+            default_branch=$(cd "$projects_dir/$project" && git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+            if [[ -z "$default_branch" ]]; then
+                default_branch="main"  # fallback
+            fi
+            
+            # Set environment variables for the setup script
+            local setup_exit_code=0
+            (
+                export W_WORKSPACE_NAME="$worktree"
+                export W_WORKSPACE_PATH="$wt_path"
+                export W_ROOT_PATH="$projects_dir/$project"
+                export W_DEFAULT_BRANCH="$default_branch"
+                
+                cd "$wt_path"
+                "$setup_script"
+            ) || setup_exit_code=$?
+            
+            if [[ $setup_exit_code -eq 0 ]]; then
+                echo -e "${COLORS[GREEN]}✅ Setup script completed successfully${COLORS[NC]}"
+            else
+                echo -e "${COLORS[YELLOW]}⚠️  Setup script exited with code $setup_exit_code${COLORS[NC]}"
+            fi
+        fi
     fi
     
     # Helper function to track recent worktree usage

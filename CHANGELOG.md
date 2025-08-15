@@ -5,6 +5,32 @@ All notable changes to Worktree Wrangler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-08-15
+
+### Added
+- **Setup and Archive Script Configuration** for automated worktree lifecycle management
+- **`w --config setup_script <path>`** to configure a script that runs when creating worktrees
+- **`w --config archive_script <path>`** to configure a script that runs before removing worktrees
+- **Environment variables for scripts**:
+  - `$W_WORKSPACE_NAME` - Name of the worktree
+  - `$W_WORKSPACE_PATH` - Full path to worktree directory
+  - `$W_ROOT_PATH` - Path to the root repository
+  - `$W_DEFAULT_BRANCH` - Default branch name (usually 'main' or 'master')
+- **Script execution during `w --rm`** and `w --cleanup`** operations
+- **Enhanced configuration display** showing setup and archive script settings in `w --config list`
+
+### Changed
+- Extended configuration system to support executable script paths
+- Added script validation (existence and executable permissions) during configuration
+- Improved error handling with clear messages for script configuration issues
+
+### Technical Details
+- Scripts run with working directory set to the worktree path
+- Scripts execute in subshells with exported environment variables
+- Archive scripts can fallback to project root if worktree path is inaccessible during removal
+- Scripts can be cleared by setting empty string: `w --config setup_script ""`
+- Exit codes are captured and displayed for debugging
+
 ## [1.3.4] - 2025-07-23
 
 ### Added
