@@ -47,9 +47,9 @@ w --update
 # Configure projects directory
 w --config projects ~/development
 
-# Configure setup/archive scripts (optional)
-w --config setup_script ~/scripts/setup-worktree.sh
-w --config archive_script ~/scripts/archive-worktree.sh
+# Configure per-repository automation scripts
+w myproject --setup_script ~/scripts/setup-worktree.sh
+w myproject --archive_script ~/scripts/archive-worktree.sh
 
 # Show current configuration
 w --config list
@@ -96,18 +96,25 @@ w --config reset
 
 ## Setup and Archive Scripts
 
-Automate your worktree lifecycle with custom scripts that run during creation and removal.
+Automate your worktree lifecycle with custom scripts that run during creation and removal. Scripts are configured **per-repository** for maximum flexibility.
 
 ### Configuration
 
 **Setup Script** - Runs automatically when creating new worktrees:
 ```bash
-w --config setup_script ~/scripts/setup-worktree.sh
+w myproject --setup_script ~/scripts/setup-worktree.sh
 ```
 
 **Archive Script** - Runs before removing worktrees (both `--rm` and `--cleanup`):
 ```bash
-w --config archive_script ~/scripts/archive-worktree.sh
+w myproject --archive_script ~/scripts/archive-worktree.sh
+```
+
+**Different scripts for different repositories:**
+```bash
+w frontend --setup_script ~/scripts/frontend-setup.sh
+w backend --setup_script ~/scripts/backend-setup.sh
+w mobile --setup_script ~/scripts/mobile-setup.sh
 ```
 
 **View Configuration:**
@@ -117,8 +124,8 @@ w --config list
 
 **Clear Scripts:**
 ```bash
-w --config setup_script ""     # Clear setup script
-w --config archive_script ""   # Clear archive script
+w myproject --setup_script ""     # Clear setup script for myproject
+w myproject --archive_script ""   # Clear archive script for myproject
 ```
 
 ### Environment Variables

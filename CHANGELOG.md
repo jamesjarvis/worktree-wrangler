@@ -5,6 +5,45 @@ All notable changes to Worktree Wrangler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2025-08-18
+
+### 🔄 BREAKING CHANGE: Per-Repository Script Configuration
+
+**MIGRATION REQUIRED**: Setup and archive scripts are now configured per-repository instead of globally.
+
+### Added
+- **Per-Repository Script Commands**:
+  - `w <repo> --setup_script <path>` - Set setup script for specific repository
+  - `w <repo> --archive_script <path>` - Set archive script for specific repository
+  - `w <repo> --setup_script ""` - Clear setup script for repository
+  - `w <repo> --archive_script ""` - Clear archive script for repository
+- **Enhanced Configuration Display** - `w --config list` now shows all configured repository scripts with clear organization
+- **Repository Validation** - Commands validate that the specified repository exists before configuring scripts
+- **Improved Help Documentation** - Updated `--help` and `--config` to show new per-repository syntax
+
+### Changed
+- **BREAKING**: Global script configuration (`w --config setup_script/archive_script`) is now **deprecated**
+- Scripts are stored per-repository in `~/.local/share/worktree-wrangler/repos/` directory
+- Each repository can have its own setup and archive scripts for maximum flexibility
+- Configuration commands now provide clear migration guidance with examples
+
+### Migration Guide
+```bash
+# OLD (deprecated):
+w --config setup_script ~/scripts/setup.sh
+
+# NEW (per-repository):
+w myproject --setup_script ~/scripts/setup.sh
+w frontend --setup_script ~/scripts/frontend-setup.sh
+w backend --setup_script ~/scripts/backend-setup.sh
+```
+
+### Technical Details
+- Repository scripts stored as individual files: `<repo>.setup_script` and `<repo>.archive_script`
+- Same environment variables provided: `$W_WORKSPACE_NAME`, `$W_WORKSPACE_PATH`, `$W_ROOT_PATH`, `$W_DEFAULT_BRANCH`
+- Backward compatibility maintained through deprecation warnings with migration examples
+- Enhanced error handling with repository existence validation
+
 ## [1.4.0] - 2025-08-15
 
 ### Added

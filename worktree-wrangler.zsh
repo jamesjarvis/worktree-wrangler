@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.4.0
+# Version: 1.5.0
 
 # Color definitions for beautiful output
 local -A COLORS
@@ -17,22 +17,29 @@ COLORS[NC]='\033[0m'  # No Color
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.4.0"
+    local VERSION="1.5.0"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
     local projects_dir="$HOME/development"  # Default
-    local setup_script=""
-    local archive_script=""
     if [[ -f "$config_file" ]]; then
         while IFS='=' read -r key value; do
             case "$key" in
                 projects_dir) projects_dir="$value" ;;
-                setup_script) setup_script="$value" ;;
-                archive_script) archive_script="$value" ;;
             esac
         done < "$config_file"
     fi
+    
+    # Helper function to get per-repository scripts
+    get_repo_script() {
+        local repo_name="$1"
+        local script_type="$2"  # setup_script or archive_script
+        local repo_script_file="$HOME/.local/share/worktree-wrangler/repos/${repo_name}.${script_type}"
+        
+        if [[ -f "$repo_script_file" ]]; then
+            cat "$repo_script_file"
+        fi
+    }
     local worktrees_dir="$projects_dir/worktrees"
     
     # Helper function to run archive script before worktree removal
@@ -41,6 +48,7 @@ w() {
         local worktree_name="$2"
         local worktree_path="$3"
         
+        local archive_script=$(get_repo_script "$project" "archive_script")
         if [[ -n "$archive_script" && -f "$archive_script" && -x "$archive_script" ]]; then
             echo -e "${COLORS[CYAN]}📦 Running archive script...${COLORS[NC]}"
             
@@ -777,12 +785,16 @@ w() {
         echo ""
         echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}CONFIGURATION:${COLORS[NC]}"
         echo -e "  ${COLORS[GREEN]}w --config projects <path>${COLORS[NC]}             Set projects directory"
-        echo -e "  ${COLORS[GREEN]}w --config setup_script <path>${COLORS[NC]}         Set setup script for new worktrees"
-        echo -e "  ${COLORS[GREEN]}w --config archive_script <path>${COLORS[NC]}       Set archive script for worktree removal"
         echo -e "  ${COLORS[GREEN]}w --config list${COLORS[NC]}                        Show current configuration"
         echo -e "  ${COLORS[GREEN]}w --config reset${COLORS[NC]}                       Reset to defaults"
         echo ""
-        echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}SETUP & ARCHIVE SCRIPTS:${COLORS[NC]}"
+        echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}PER-REPOSITORY SCRIPTS:${COLORS[NC]}"
+        echo -e "  ${COLORS[GREEN]}w <repo> --setup_script <path>${COLORS[NC]}         Set setup script for repository"
+        echo -e "  ${COLORS[GREEN]}w <repo> --archive_script <path>${COLORS[NC]}       Set archive script for repository"
+        echo -e "  ${COLORS[GREEN]}w <repo> --setup_script \"\"${COLORS[NC]}            Clear repository setup script"
+        echo -e "  ${COLORS[GREEN]}w <repo> --archive_script \"\"${COLORS[NC]}          Clear repository archive script"
+        echo ""
+        echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}SCRIPT ENVIRONMENT VARIABLES:${COLORS[NC]}"
         echo -e "  Scripts receive environment variables:"
         echo -e "    ${COLORS[CYAN]}\$W_WORKSPACE_NAME${COLORS[NC]}   - Name of the worktree"
         echo -e "    ${COLORS[CYAN]}\$W_WORKSPACE_PATH${COLORS[NC]}   - Full path to worktree directory"
@@ -796,9 +808,9 @@ w() {
         echo -e "  ${COLORS[DIM]}# Run command in worktree${COLORS[NC]}"
         echo -e "  ${COLORS[WHITE]}w myproject feature-auth npm test${COLORS[NC]}"
         echo ""
-        echo -e "  ${COLORS[DIM]}# Configure automation scripts${COLORS[NC]}"
-        echo -e "  ${COLORS[WHITE]}w --config setup_script ~/scripts/setup-worktree.sh${COLORS[NC]}"
-        echo -e "  ${COLORS[WHITE]}w --config archive_script ~/scripts/archive-worktree.sh${COLORS[NC]}"
+        echo -e "  ${COLORS[DIM]}# Configure per-repository automation scripts${COLORS[NC]}"
+        echo -e "  ${COLORS[WHITE]}w myproject --setup_script ~/scripts/setup-worktree.sh${COLORS[NC]}"
+        echo -e "  ${COLORS[WHITE]}w myproject --archive_script ~/scripts/archive-worktree.sh${COLORS[NC]}"
         echo ""
         echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}OTHER:${COLORS[NC]}"
         echo -e "  ${COLORS[GREEN]}w --version${COLORS[NC]}                             Show version"
@@ -873,11 +885,13 @@ w() {
         if [[ -z "$action" ]]; then
             echo "Usage: w --config <action>"
             echo "Actions:"
-            echo "  projects <path>         Set projects directory"
-            echo "  setup_script <path>     Set setup script to run on worktree creation"
-            echo "  archive_script <path>   Set archive script to run on worktree removal"
-            echo "  list                    Show current configuration"
-            echo "  reset                   Reset to defaults"
+            echo "  projects <path>    Set projects directory"
+            echo "  list              Show current configuration"
+            echo "  reset             Reset to defaults"
+            echo ""
+            echo -e "${COLORS[YELLOW]}For per-repository scripts:${COLORS[NC]}"
+            echo -e "  ${COLORS[GREEN]}w <repo> --setup_script <path>${COLORS[NC]}     Set setup script for repository"
+            echo -e "  ${COLORS[GREEN]}w <repo> --archive_script <path>${COLORS[NC]}   Set archive script for repository"
             return 1
         fi
         
@@ -907,120 +921,68 @@ w() {
                 echo "Worktrees will be created in: $new_path/worktrees"
                 ;;
             setup_script)
-                local script_path="$2"
-                if [[ -z "$script_path" ]]; then
-                    echo "Usage: w --config setup_script <path>"
-                    echo "       w --config setup_script \"\" (to clear)"
-                    return 1
-                fi
-                
-                # Handle clearing the script
-                if [[ "$script_path" == "" ]]; then
-                    # Create config directory if it doesn't exist
-                    mkdir -p "$(dirname "$config_file")"
-                    
-                    # Remove setup_script line from config
-                    if [[ -f "$config_file" ]]; then
-                        grep -v "^setup_script=" "$config_file" > "${config_file}.tmp" 2>/dev/null || true
-                        mv "${config_file}.tmp" "$config_file" 2>/dev/null || true
-                    fi
-                    echo "✅ Cleared setup script"
-                    return 0
-                fi
-                
-                # Expand tilde and resolve path
-                script_path="${script_path/#\~/$HOME}"
-                script_path=$(realpath "$script_path" 2>/dev/null || echo "$script_path")
-                
-                if [[ ! -f "$script_path" ]]; then
-                    echo "Error: Script file does not exist: $script_path"
-                    return 1
-                fi
-                
-                if [[ ! -x "$script_path" ]]; then
-                    echo "Error: Script file is not executable: $script_path"
-                    echo "Run: chmod +x $script_path"
-                    return 1
-                fi
-                
-                # Create config directory if it doesn't exist
-                mkdir -p "$(dirname "$config_file")"
-                
-                # Update or add setup_script to config
-                if [[ -f "$config_file" ]]; then
-                    grep -v "^setup_script=" "$config_file" > "${config_file}.tmp" 2>/dev/null || true
-                    mv "${config_file}.tmp" "$config_file" 2>/dev/null || true
-                fi
-                echo "setup_script=$script_path" >> "$config_file"
-                echo "✅ Set setup script to: $script_path"
+                echo -e "${COLORS[YELLOW]}⚠️  DEPRECATED: Global setup scripts are no longer supported${COLORS[NC]}"
+                echo -e "${COLORS[YELLOW]}📝 Use per-repository scripts instead:${COLORS[NC]}"
+                echo ""
+                echo -e "${COLORS[GREEN]}  w <repo> --setup_script <path>${COLORS[NC]}     Set setup script for specific repository"
+                echo -e "${COLORS[GREEN]}  w <repo> --setup_script \"\"${COLORS[NC]}       Clear setup script for repository"
+                echo ""
+                echo -e "${COLORS[CYAN]}💡 Example:${COLORS[NC]}"
+                echo -e "  ${COLORS[WHITE]}w myproject --setup_script ~/scripts/setup-worktree.sh${COLORS[NC]}"
+                return 1
                 ;;
             archive_script)
-                local script_path="$2"
-                if [[ -z "$script_path" ]]; then
-                    echo "Usage: w --config archive_script <path>"
-                    echo "       w --config archive_script \"\" (to clear)"
-                    return 1
-                fi
-                
-                # Handle clearing the script
-                if [[ "$script_path" == "" ]]; then
-                    # Create config directory if it doesn't exist
-                    mkdir -p "$(dirname "$config_file")"
-                    
-                    # Remove archive_script line from config
-                    if [[ -f "$config_file" ]]; then
-                        grep -v "^archive_script=" "$config_file" > "${config_file}.tmp" 2>/dev/null || true
-                        mv "${config_file}.tmp" "$config_file" 2>/dev/null || true
-                    fi
-                    echo "✅ Cleared archive script"
-                    return 0
-                fi
-                
-                # Expand tilde and resolve path
-                script_path="${script_path/#\~/$HOME}"
-                script_path=$(realpath "$script_path" 2>/dev/null || echo "$script_path")
-                
-                if [[ ! -f "$script_path" ]]; then
-                    echo "Error: Script file does not exist: $script_path"
-                    return 1
-                fi
-                
-                if [[ ! -x "$script_path" ]]; then
-                    echo "Error: Script file is not executable: $script_path"
-                    echo "Run: chmod +x $script_path"
-                    return 1
-                fi
-                
-                # Create config directory if it doesn't exist
-                mkdir -p "$(dirname "$config_file")"
-                
-                # Update or add archive_script to config
-                if [[ -f "$config_file" ]]; then
-                    grep -v "^archive_script=" "$config_file" > "${config_file}.tmp" 2>/dev/null || true
-                    mv "${config_file}.tmp" "$config_file" 2>/dev/null || true
-                fi
-                echo "archive_script=$script_path" >> "$config_file"
-                echo "✅ Set archive script to: $script_path"
+                echo -e "${COLORS[YELLOW]}⚠️  DEPRECATED: Global archive scripts are no longer supported${COLORS[NC]}"
+                echo -e "${COLORS[YELLOW]}📝 Use per-repository scripts instead:${COLORS[NC]}"
+                echo ""
+                echo -e "${COLORS[GREEN]}  w <repo> --archive_script <path>${COLORS[NC]}    Set archive script for specific repository"
+                echo -e "${COLORS[GREEN]}  w <repo> --archive_script \"\"${COLORS[NC]}      Clear archive script for repository"
+                echo ""
+                echo -e "${COLORS[CYAN]}💡 Example:${COLORS[NC]}"
+                echo -e "  ${COLORS[WHITE]}w myproject --archive_script ~/scripts/archive-worktree.sh${COLORS[NC]}"
+                return 1
                 ;;
             list)
-                echo "=== Configuration ==="
+                echo -e "${COLORS[CYAN]}${COLORS[BOLD]}=== Configuration ===${COLORS[NC]}"
+                echo -e "${COLORS[DIM]}Global Settings:${COLORS[NC]}"
                 echo "Projects directory: $projects_dir"
                 echo "Worktrees directory: $worktrees_dir"
-                if [[ -n "$setup_script" ]]; then
-                    echo "Setup script: $setup_script"
-                else
-                    echo "Setup script: (not set)"
-                fi
-                if [[ -n "$archive_script" ]]; then
-                    echo "Archive script: $archive_script"
-                else
-                    echo "Archive script: (not set)"
-                fi
                 echo "Config file: $config_file"
                 if [[ -f "$config_file" ]]; then
                     echo "✅ Config file exists"
                 else
                     echo "⚠️  Using default configuration (no config file)"
+                fi
+                echo ""
+                echo -e "${COLORS[DIM]}Per-Repository Scripts:${COLORS[NC]}"
+                
+                local found_any_scripts=false
+                local repos_dir="$HOME/.local/share/worktree-wrangler/repos"
+                if [[ -d "$repos_dir" ]]; then
+                    for script_file in "$repos_dir"/*; do
+                        if [[ -f "$script_file" ]]; then
+                            local filename=$(basename "$script_file")
+                            local repo_name="${filename%.*}"
+                            local script_type="${filename##*.}"
+                            local script_path=$(cat "$script_file")
+                            
+                            if [[ "$script_type" == "setup_script" ]]; then
+                                echo -e "  ${COLORS[GREEN]}📝 $repo_name (setup):${COLORS[NC]} $script_path"
+                                found_any_scripts=true
+                            elif [[ "$script_type" == "archive_script" ]]; then
+                                echo -e "  ${COLORS[YELLOW]}📦 $repo_name (archive):${COLORS[NC]} $script_path"
+                                found_any_scripts=true
+                            fi
+                        fi
+                    done
+                fi
+                
+                if [[ "$found_any_scripts" == "false" ]]; then
+                    echo -e "  ${COLORS[DIM]}(no repository scripts configured)${COLORS[NC]}"
+                    echo ""
+                    echo -e "${COLORS[YELLOW]}💡 To configure per-repository scripts:${COLORS[NC]}"
+                    echo -e "  ${COLORS[WHITE]}w <repo> --setup_script ~/scripts/setup-worktree.sh${COLORS[NC]}"
+                    echo -e "  ${COLORS[WHITE]}w <repo> --archive_script ~/scripts/archive-worktree.sh${COLORS[NC]}"
                 fi
                 ;;
             reset)
@@ -1034,10 +996,145 @@ w() {
                 ;;
             *)
                 echo "Unknown action: $action"
-                echo "Available actions: projects, setup_script, archive_script, list, reset"
+                echo "Available actions: projects, list, reset"
+                echo ""
+                echo -e "${COLORS[YELLOW]}For per-repository scripts:${COLORS[NC]}"
+                echo -e "  ${COLORS[GREEN]}w <repo> --setup_script <path>${COLORS[NC]}"
+                echo -e "  ${COLORS[GREEN]}w <repo> --archive_script <path>${COLORS[NC]}"
                 return 1
                 ;;
         esac
+        return 0
+    fi
+    
+    # Check for per-repository script commands
+    if [[ "$2" == "--setup_script" ]]; then
+        local repo_name="$1"
+        local script_path="$3"
+        
+        if [[ -z "$repo_name" ]]; then
+            echo "Usage: w <repo> --setup_script <path>"
+            echo "       w <repo> --setup_script \"\" (to clear)"
+            return 1
+        fi
+        
+        if [[ -z "$script_path" ]]; then
+            echo "Usage: w <repo> --setup_script <path>"
+            echo "       w <repo> --setup_script \"\" (to clear)"
+            return 1
+        fi
+        
+        # Check if project exists
+        if [[ ! -d "$projects_dir/$repo_name" ]]; then
+            echo -e "${COLORS[RED]}❌ Repository not found: $projects_dir/$repo_name${COLORS[NC]}"
+            echo ""
+            echo "Available repositories in $projects_dir:"
+            for dir in "$projects_dir"/*(/N); do
+                if [[ -d "$dir/.git" ]]; then
+                    echo "  • $(basename "$dir")"
+                fi
+            done
+            return 1
+        fi
+        
+        local repo_script_file="$HOME/.local/share/worktree-wrangler/repos/${repo_name}.setup_script"
+        
+        # Handle clearing the script
+        if [[ "$script_path" == "" ]]; then
+            if [[ -f "$repo_script_file" ]]; then
+                rm "$repo_script_file"
+                echo -e "${COLORS[GREEN]}✅ Cleared setup script for repository: $repo_name${COLORS[NC]}"
+            else
+                echo -e "${COLORS[YELLOW]}⚠️  No setup script was configured for repository: $repo_name${COLORS[NC]}"
+            fi
+            return 0
+        fi
+        
+        # Expand tilde and resolve path
+        script_path="${script_path/#\~/$HOME}"
+        script_path=$(realpath "$script_path" 2>/dev/null || echo "$script_path")
+        
+        if [[ ! -f "$script_path" ]]; then
+            echo -e "${COLORS[RED]}❌ Script file does not exist: $script_path${COLORS[NC]}"
+            return 1
+        fi
+        
+        if [[ ! -x "$script_path" ]]; then
+            echo -e "${COLORS[RED]}❌ Script file is not executable: $script_path${COLORS[NC]}"
+            echo -e "${COLORS[YELLOW]}💡 Run: chmod +x $script_path${COLORS[NC]}"
+            return 1
+        fi
+        
+        # Create repos directory if it doesn't exist
+        mkdir -p "$(dirname "$repo_script_file")"
+        
+        # Store the script path
+        echo "$script_path" > "$repo_script_file"
+        echo -e "${COLORS[GREEN]}✅ Set setup script for repository '${COLORS[BOLD]}$repo_name${COLORS[NC]}${COLORS[GREEN]}': $script_path${COLORS[NC]}"
+        return 0
+    elif [[ "$2" == "--archive_script" ]]; then
+        local repo_name="$1"
+        local script_path="$3"
+        
+        if [[ -z "$repo_name" ]]; then
+            echo "Usage: w <repo> --archive_script <path>"
+            echo "       w <repo> --archive_script \"\" (to clear)"
+            return 1
+        fi
+        
+        if [[ -z "$script_path" ]]; then
+            echo "Usage: w <repo> --archive_script <path>"
+            echo "       w <repo> --archive_script \"\" (to clear)"
+            return 1
+        fi
+        
+        # Check if project exists
+        if [[ ! -d "$projects_dir/$repo_name" ]]; then
+            echo -e "${COLORS[RED]}❌ Repository not found: $projects_dir/$repo_name${COLORS[NC]}"
+            echo ""
+            echo "Available repositories in $projects_dir:"
+            for dir in "$projects_dir"/*(/N); do
+                if [[ -d "$dir/.git" ]]; then
+                    echo "  • $(basename "$dir")"
+                fi
+            done
+            return 1
+        fi
+        
+        local repo_script_file="$HOME/.local/share/worktree-wrangler/repos/${repo_name}.archive_script"
+        
+        # Handle clearing the script
+        if [[ "$script_path" == "" ]]; then
+            if [[ -f "$repo_script_file" ]]; then
+                rm "$repo_script_file"
+                echo -e "${COLORS[GREEN]}✅ Cleared archive script for repository: $repo_name${COLORS[NC]}"
+            else
+                echo -e "${COLORS[YELLOW]}⚠️  No archive script was configured for repository: $repo_name${COLORS[NC]}"
+            fi
+            return 0
+        fi
+        
+        # Expand tilde and resolve path
+        script_path="${script_path/#\~/$HOME}"
+        script_path=$(realpath "$script_path" 2>/dev/null || echo "$script_path")
+        
+        if [[ ! -f "$script_path" ]]; then
+            echo -e "${COLORS[RED]}❌ Script file does not exist: $script_path${COLORS[NC]}"
+            return 1
+        fi
+        
+        if [[ ! -x "$script_path" ]]; then
+            echo -e "${COLORS[RED]}❌ Script file is not executable: $script_path${COLORS[NC]}"
+            echo -e "${COLORS[YELLOW]}💡 Run: chmod +x $script_path${COLORS[NC]}"
+            return 1
+        fi
+        
+        # Create repos directory if it doesn't exist
+        mkdir -p "$(dirname "$repo_script_file")"
+        
+        # Store the script path
+        echo "$script_path" > "$repo_script_file"
+        echo -e "${COLORS[GREEN]}✅ Set archive script for repository '${COLORS[BOLD]}$repo_name${COLORS[NC]}${COLORS[GREEN]}': $script_path${COLORS[NC]}"
         return 0
     fi
     
@@ -1056,6 +1153,8 @@ w() {
         echo "       w --version"
         echo "       w --update"
         echo "       w --config <action>"
+        echo "       w <repo> --setup_script <path>"
+        echo "       w <repo> --archive_script <path>"
         echo "       w --help"
         return 1
     fi
@@ -1123,6 +1222,7 @@ w() {
         echo -e "${COLORS[GREEN]}✅ Worktree created successfully!${COLORS[NC]}"
         
         # Run setup script if configured
+        local setup_script=$(get_repo_script "$project" "setup_script")
         if [[ -n "$setup_script" && -f "$setup_script" && -x "$setup_script" ]]; then
             echo -e "${COLORS[CYAN]}🚀 Running setup script...${COLORS[NC]}"
             
