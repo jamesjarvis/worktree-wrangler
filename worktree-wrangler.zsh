@@ -762,6 +762,51 @@ w() {
         fi
         
         return 0
+    elif [[ "$1" == "--help" ]]; then
+        echo -e "${COLORS[CYAN]}${COLORS[BOLD]}🚀 Worktree Wrangler${COLORS[NC]} ${COLORS[GREEN]}v$VERSION${COLORS[NC]}"
+        echo -e "${COLORS[DIM]}Multi-project Git worktree manager for zsh${COLORS[NC]}"
+        echo ""
+        echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}USAGE:${COLORS[NC]}"
+        echo -e "  ${COLORS[GREEN]}w <project> <worktree> [command...]${COLORS[NC]}     Switch to/create worktree"
+        echo -e "  ${COLORS[GREEN]}w --list${COLORS[NC]}                               List all worktrees"
+        echo -e "  ${COLORS[GREEN]}w --status [project]${COLORS[NC]}                   Show git status across worktrees"
+        echo -e "  ${COLORS[GREEN]}w --recent${COLORS[NC]}                             Show recently used worktrees"
+        echo -e "  ${COLORS[GREEN]}w --rm <project> <worktree>${COLORS[NC]}            Remove a worktree"
+        echo -e "  ${COLORS[GREEN]}w --cleanup${COLORS[NC]}                            Clean up merged PR worktrees"
+        echo -e "  ${COLORS[GREEN]}w --copy-pr-link [project] [worktree]${COLORS[NC]}  Copy PR link with emoji"
+        echo ""
+        echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}CONFIGURATION:${COLORS[NC]}"
+        echo -e "  ${COLORS[GREEN]}w --config projects <path>${COLORS[NC]}             Set projects directory"
+        echo -e "  ${COLORS[GREEN]}w --config setup_script <path>${COLORS[NC]}         Set setup script for new worktrees"
+        echo -e "  ${COLORS[GREEN]}w --config archive_script <path>${COLORS[NC]}       Set archive script for worktree removal"
+        echo -e "  ${COLORS[GREEN]}w --config list${COLORS[NC]}                        Show current configuration"
+        echo -e "  ${COLORS[GREEN]}w --config reset${COLORS[NC]}                       Reset to defaults"
+        echo ""
+        echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}SETUP & ARCHIVE SCRIPTS:${COLORS[NC]}"
+        echo -e "  Scripts receive environment variables:"
+        echo -e "    ${COLORS[CYAN]}\$W_WORKSPACE_NAME${COLORS[NC]}   - Name of the worktree"
+        echo -e "    ${COLORS[CYAN]}\$W_WORKSPACE_PATH${COLORS[NC]}   - Full path to worktree directory"
+        echo -e "    ${COLORS[CYAN]}\$W_ROOT_PATH${COLORS[NC]}        - Path to main git repository"
+        echo -e "    ${COLORS[CYAN]}\$W_DEFAULT_BRANCH${COLORS[NC]}   - Default branch name (main/master)"
+        echo ""
+        echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}EXAMPLES:${COLORS[NC]}"
+        echo -e "  ${COLORS[DIM]}# Switch to worktree (creates if needed)${COLORS[NC]}"
+        echo -e "  ${COLORS[WHITE]}w myproject feature-auth${COLORS[NC]}"
+        echo ""
+        echo -e "  ${COLORS[DIM]}# Run command in worktree${COLORS[NC]}"
+        echo -e "  ${COLORS[WHITE]}w myproject feature-auth npm test${COLORS[NC]}"
+        echo ""
+        echo -e "  ${COLORS[DIM]}# Configure automation scripts${COLORS[NC]}"
+        echo -e "  ${COLORS[WHITE]}w --config setup_script ~/scripts/setup-worktree.sh${COLORS[NC]}"
+        echo -e "  ${COLORS[WHITE]}w --config archive_script ~/scripts/archive-worktree.sh${COLORS[NC]}"
+        echo ""
+        echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}OTHER:${COLORS[NC]}"
+        echo -e "  ${COLORS[GREEN]}w --version${COLORS[NC]}                             Show version"
+        echo -e "  ${COLORS[GREEN]}w --update${COLORS[NC]}                              Update to latest version"
+        echo -e "  ${COLORS[GREEN]}w --help${COLORS[NC]}                                Show this help"
+        echo ""
+        echo -e "${COLORS[DIM]}For detailed documentation: https://github.com/jamesjarvis/worktree-wrangler${COLORS[NC]}"
+        return 0
     elif [[ "$1" == "--version" ]]; then
         echo -e "${COLORS[PURPLE]}${COLORS[BOLD]}🚀 Worktree Wrangler${COLORS[NC]} ${COLORS[GREEN]}v$VERSION${COLORS[NC]}"
         return 0
@@ -1011,6 +1056,7 @@ w() {
         echo "       w --version"
         echo "       w --update"
         echo "       w --config <action>"
+        echo "       w --help"
         return 1
     fi
     
