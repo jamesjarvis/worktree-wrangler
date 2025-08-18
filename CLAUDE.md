@@ -246,12 +246,17 @@ The PR detection system is complex but critical. Key points:
    - Test should fail before fix, pass after fix
    - Use patterns from CLAUDE-TESTING.md
 
-4. **Version Update Process**
+4. **Documentation and Help Updates**
+   - Update README.md if the fix affects user-facing behavior
+   - Update `--help` command output if new options/behavior are added
+   - Ensure `--config` help text is current with any configuration changes
+
+5. **Version Update Process**
    - PATCH version for bug fixes (X.Y.Z → X.Y.Z+1)
    - Update version in all required files
    - Update CHANGELOG.md with fix details
 
-5. **Commit and Release**
+6. **Commit and Release**
    - Use `[AI] fix:` commit format
    - Push to GitHub BEFORE creating release
    - Create GitHub release with detailed notes
@@ -280,6 +285,97 @@ gh release create vX.Y.Z --title "Bug Fix" --notes "..."
 - **Git worktree validation**: Use `[ -e "$path/.git" ]` not `[ -d "$path/.git" ]`
 
 **Always add regression tests** for fixed bugs to prevent them from returning.
+
+## Feature Development Workflow
+
+### When Adding New Features
+
+1. **Plan and Design**
+   - Use TodoWrite tool to break down complex features into manageable tasks
+   - Consider backwards compatibility and user experience impact
+   - Design configuration options if the feature needs customization
+
+2. **Implementation**
+   - Follow existing code patterns and conventions
+   - Add proper error handling and validation
+   - Use subshells and proper variable scoping
+   - Follow the zsh-specific patterns documented in this file
+
+3. **Documentation Updates** (CRITICAL - Always Required)
+   - **README.md**: Add feature documentation with examples
+   - **`--help` command**: Update help text to include new options/commands
+   - **`--config` help**: Update if adding new configuration options
+   - **CHANGELOG.md**: Document the feature thoroughly with use cases
+
+4. **Testing**
+   - Test the feature manually in multiple scenarios
+   - Add regression tests if applicable
+   - Test edge cases and error conditions
+   - Verify backwards compatibility
+
+5. **Version Management**
+   - MINOR version for new features (X.Y.Z → X.Y+1.0)
+   - MAJOR version for breaking changes (X.Y.Z → X+1.0.0)
+   - Update version in ALL required files (worktree-wrangler.zsh, w.zsh, CHANGELOG.md)
+
+6. **Commit and Release**
+   - Use `[AI] feat:` commit format for features
+   - Push to GitHub BEFORE creating release
+   - Create GitHub release with comprehensive feature description
+
+### Feature Documentation Checklist
+
+**For ANY new feature, you MUST update:**
+- ✅ README.md with usage examples and configuration steps
+- ✅ `--help` command output with new options explained  
+- ✅ `--config` help text if configuration options are added
+- ✅ CHANGELOG.md with detailed feature description
+- ✅ Version numbers in all files
+
+**Example Feature Development - Setup Scripts:**
+```bash
+# 1. Plan feature with TodoWrite
+# 2. Implement setup script configuration and execution
+# 3. Update documentation:
+#    - Add README section with examples
+#    - Update --help command with configuration options
+#    - Update --config help text
+#    - Add CHANGELOG entry
+# 4. Update version to 1.4.0
+# 5. Commit and release
+git commit -m "[AI] feat: add setup and archive script configuration v1.4.0"
+git push origin master
+gh release create v1.4.0 --title "..." --notes "..."
+```
+
+### Documentation Standards for Features
+
+**README.md Requirements:**
+- Configuration examples with actual commands
+- Environment variables or script requirements clearly documented  
+- Complete working examples users can copy/paste
+- Use cases and practical scenarios
+
+**Help Command Requirements:**
+- Add new options to appropriate sections (USAGE, CONFIGURATION, etc.)
+- Include brief but clear descriptions
+- Show command syntax with proper formatting
+- Use consistent color coding
+
+**CHANGELOG.md Requirements:**
+- Explain the "why" not just the "what"
+- Include configuration examples
+- Document any environment variables or requirements
+- List use cases and benefits
+
+### Critical Reminder
+
+**NEVER ship a feature without updating all documentation.** Users discover features through:
+1. `w --help` (most common)
+2. README.md (GitHub visitors)
+3. `w --config` (configuration discovery)
+
+If any of these are missing or outdated, users won't know the feature exists or how to use it.
 
 ## Release Process
 
