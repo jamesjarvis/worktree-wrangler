@@ -128,6 +128,38 @@ w myproject --setup_script ""     # Clear setup script for myproject
 w myproject --archive_script ""   # Clear archive script for myproject
 ```
 
+### Custom Emoji for PR Links
+
+Configure custom emoji generation for `--copy-pr-link` command:
+
+**Set Emoji Script:**
+```bash
+w myproject --emoji_diff_script ~/scripts/generate-emoji.sh
+```
+
+**Example Emoji Script:**
+
+Create `~/scripts/generate-emoji.sh`:
+
+```bash
+#!/bin/bash
+# Custom emoji based on diff size
+diff_content=$(cat)
+total=$(echo "$diff_content" | grep -E "^[+-]" | wc -l)
+
+if [ $total -lt 50 ]; then
+    echo "✨"  # sparkles for small changes
+elif [ $total -lt 150 ]; then
+    echo "🔧"  # wrench for medium changes  
+elif [ $total -lt 600 ]; then
+    echo "🚀"  # rocket for larger changes
+else
+    echo "💥"  # explosion for huge changes
+fi
+```
+
+The script receives the git diff on stdin and should output a single emoji to stdout. If the script fails or returns empty, the built-in emoji selection is used as fallback.
+
 ### Environment Variables
 
 Your scripts receive these environment variables:
