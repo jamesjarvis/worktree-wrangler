@@ -5,6 +5,38 @@ All notable changes to Worktree Wrangler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2025-08-22
+
+### Added
+- **Custom Emoji Script for PR Links**: Configure per-repository scripts to generate custom emojis for `--copy-pr-link`
+  - `w <repo> --emoji_diff_script <path>` - Set custom emoji generation script
+  - `w <repo> --emoji_diff_script ""` - Clear emoji script configuration
+  - Script receives git diff on stdin and outputs emoji to stdout
+  - Falls back to built-in emoji selection if script fails or is not configured
+- **Enhanced Emoji Selection**: Custom scripts allow for more sophisticated PR categorization
+  - Use smaller, more appropriate emojis based on your team's preferences
+  - Integrate with AI or other tools for intelligent emoji selection
+  - Keep emoji sizes reasonable to avoid oversized icons in documentation
+
+### Use Cases
+```bash
+# Set a custom emoji script that uses smaller emojis
+w myproject --emoji_diff_script ~/scripts/generate-emoji.sh
+
+# Example script content:
+#!/bin/bash
+# Returns smaller emojis based on diff size
+diff_content=$(cat)
+total=$(echo "$diff_content" | grep -E "^[+-]" | wc -l)
+if [ $total -lt 50 ]; then echo "✨"; else echo "🚀"; fi
+```
+
+### Technical Details
+- Script configuration stored in `~/.local/share/worktree-wrangler/repos/<repo>.emoji_diff_script`
+- Script must be executable and return a single emoji to stdout
+- Graceful fallback to built-in selection on script failure
+- Improved error handling with clear user feedback
+
 ## [1.5.0] - 2025-08-18
 
 ### 🔄 BREAKING CHANGE: Per-Repository Script Configuration

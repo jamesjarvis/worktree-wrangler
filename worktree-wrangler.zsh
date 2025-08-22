@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # Worktree Wrangler - Multi-project Git worktree manager
-# Version: 1.5.0
+# Version: 1.6.0
 
 # Color definitions for beautiful output
 local -A COLORS
@@ -17,7 +17,7 @@ COLORS[NC]='\033[0m'  # No Color
 
 # Main worktree wrangler function
 w() {
-    local VERSION="1.5.0"
+    local VERSION="1.6.0"
     local config_file="$HOME/.local/share/worktree-wrangler/config"
     
     # Load configuration
@@ -33,7 +33,7 @@ w() {
     # Helper function to get per-repository scripts
     get_repo_script() {
         local repo_name="$1"
-        local script_type="$2"  # setup_script or archive_script
+        local script_type="$2"  # setup_script, archive_script, or emoji_diff_script
         local repo_script_file="$HOME/.local/share/worktree-wrangler/repos/${repo_name}.${script_type}"
         
         if [[ -f "$repo_script_file" ]]; then
@@ -719,29 +719,58 @@ w() {
         local pr_diff
         pr_diff=$(cd "$project_path" && gh pr diff "$pr_number" 2>/dev/null)
         
-        if [[ -z "$pr_diff" ]]; then
-            echo -e "${COLORS[YELLOW]}⚠️  Could not get PR diff, using default emoji${COLORS[NC]}"
-            local emoji="🐕"  # Default to dog
-        else
-            # Count lines that start with + or - (but not +++ or ---)
-            local added_lines=$(echo "$pr_diff" | grep "^+" | grep -v "^+++" | wc -l | tr -d ' ')
-            local removed_lines=$(echo "$pr_diff" | grep "^-" | grep -v "^---" | wc -l | tr -d ' ')
-            local total_changes=$((added_lines + removed_lines))
-            
-            echo -e "${COLORS[DIM]}Diff size: +$added_lines -$removed_lines (total: $total_changes lines)${COLORS[NC]}"
-            
-            # Select emoji based on diff size
-            local emoji
-            if [[ $total_changes -lt 50 ]]; then
-                emoji="🐜"  # ant
-            elif [[ $total_changes -lt 150 ]]; then
-                emoji="🐭"  # mouse
-            elif [[ $total_changes -lt 600 ]]; then
-                emoji="🐕"  # dog
-            elif [[ $total_changes -lt 2000 ]]; then
-                emoji="🦁"  # lion
+        # Get project name from path
+        local project_name=$(basename "$project_path")
+        
+        # Check if custom emoji script is configured
+        local emoji_script=$(get_repo_script "$project_name" "emoji_diff_script")
+        local emoji
+        
+        if [[ -n "$emoji_script" && -f "$emoji_script" && -x "$emoji_script" ]]; then
+            # Use custom emoji script
+            echo -e "${COLORS[DIM]}Using custom emoji script: $emoji_script${COLORS[NC]}"
+            if [[ -n "$pr_diff" ]]; then
+                # Pass the diff to the script and get emoji
+                emoji=$(echo "$pr_diff" | "$emoji_script" 2>/dev/null)
+                local script_exit_code=$?
+                
+                if [[ $script_exit_code -ne 0 || -z "$emoji" ]]; then
+                    echo -e "${COLORS[YELLOW]}⚠️  Custom emoji script failed or returned empty, falling back to default${COLORS[NC]}"
+                    emoji=""
+                else
+                    echo -e "${COLORS[DIM]}Custom script returned: $emoji${COLORS[NC]}"
+                fi
             else
-                emoji="🐋"  # whale
+                echo -e "${COLORS[YELLOW]}⚠️  Could not get PR diff, falling back to default emoji selection${COLORS[NC]}"
+                emoji=""
+            fi
+        fi
+        
+        # Fallback to built-in emoji selection if custom script not available or failed
+        if [[ -z "$emoji" ]]; then
+            if [[ -z "$pr_diff" ]]; then
+                echo -e "${COLORS[YELLOW]}⚠️  Could not get PR diff, using default emoji${COLORS[NC]}"
+                emoji="🐕"  # Default to dog
+            else
+                # Count lines that start with + or - (but not +++ or ---)
+                local added_lines=$(echo "$pr_diff" | grep "^+" | grep -v "^+++" | wc -l | tr -d ' ')
+                local removed_lines=$(echo "$pr_diff" | grep "^-" | grep -v "^---" | wc -l | tr -d ' ')
+                local total_changes=$((added_lines + removed_lines))
+                
+                echo -e "${COLORS[DIM]}Diff size: +$added_lines -$removed_lines (total: $total_changes lines)${COLORS[NC]}"
+                
+                # Select emoji based on diff size
+                if [[ $total_changes -lt 50 ]]; then
+                    emoji="🐜"  # ant
+                elif [[ $total_changes -lt 150 ]]; then
+                    emoji="🐭"  # mouse
+                elif [[ $total_changes -lt 600 ]]; then
+                    emoji="🐕"  # dog
+                elif [[ $total_changes -lt 2000 ]]; then
+                    emoji="🦁"  # lion
+                else
+                    emoji="🐋"  # whale
+                fi
             fi
         fi
         
@@ -791,15 +820,19 @@ w() {
         echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}PER-REPOSITORY SCRIPTS:${COLORS[NC]}"
         echo -e "  ${COLORS[GREEN]}w <repo> --setup_script <path>${COLORS[NC]}         Set setup script for repository"
         echo -e "  ${COLORS[GREEN]}w <repo> --archive_script <path>${COLORS[NC]}       Set archive script for repository"
+        echo -e "  ${COLORS[GREEN]}w <repo> --emoji_diff_script <path>${COLORS[NC]}    Set emoji generation script for PRs"
         echo -e "  ${COLORS[GREEN]}w <repo> --setup_script \"\"${COLORS[NC]}            Clear repository setup script"
         echo -e "  ${COLORS[GREEN]}w <repo> --archive_script \"\"${COLORS[NC]}          Clear repository archive script"
+        echo -e "  ${COLORS[GREEN]}w <repo> --emoji_diff_script \"\"${COLORS[NC]}       Clear repository emoji script"
         echo ""
         echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}SCRIPT ENVIRONMENT VARIABLES:${COLORS[NC]}"
-        echo -e "  Scripts receive environment variables:"
+        echo -e "  Setup/Archive scripts receive:"
         echo -e "    ${COLORS[CYAN]}\$W_WORKSPACE_NAME${COLORS[NC]}   - Name of the worktree"
         echo -e "    ${COLORS[CYAN]}\$W_WORKSPACE_PATH${COLORS[NC]}   - Full path to worktree directory"
         echo -e "    ${COLORS[CYAN]}\$W_ROOT_PATH${COLORS[NC]}        - Path to main git repository"
         echo -e "    ${COLORS[CYAN]}\$W_DEFAULT_BRANCH${COLORS[NC]}   - Default branch name (main/master)"
+        echo -e "  Emoji diff script:"
+        echo -e "    Receives git diff output on stdin, outputs emoji to stdout"
         echo ""
         echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}EXAMPLES:${COLORS[NC]}"
         echo -e "  ${COLORS[DIM]}# Switch to worktree (creates if needed)${COLORS[NC]}"
@@ -811,6 +844,7 @@ w() {
         echo -e "  ${COLORS[DIM]}# Configure per-repository automation scripts${COLORS[NC]}"
         echo -e "  ${COLORS[WHITE]}w myproject --setup_script ~/scripts/setup-worktree.sh${COLORS[NC]}"
         echo -e "  ${COLORS[WHITE]}w myproject --archive_script ~/scripts/archive-worktree.sh${COLORS[NC]}"
+        echo -e "  ${COLORS[WHITE]}w myproject --emoji_diff_script ~/scripts/generate-emoji.sh${COLORS[NC]}"
         echo ""
         echo -e "${COLORS[YELLOW]}${COLORS[BOLD]}OTHER:${COLORS[NC]}"
         echo -e "  ${COLORS[GREEN]}w --version${COLORS[NC]}                             Show version"
@@ -892,6 +926,7 @@ w() {
             echo -e "${COLORS[YELLOW]}For per-repository scripts:${COLORS[NC]}"
             echo -e "  ${COLORS[GREEN]}w <repo> --setup_script <path>${COLORS[NC]}     Set setup script for repository"
             echo -e "  ${COLORS[GREEN]}w <repo> --archive_script <path>${COLORS[NC]}   Set archive script for repository"
+            echo -e "  ${COLORS[GREEN]}w <repo> --emoji_diff_script <path>${COLORS[NC]} Set emoji generation script"
             return 1
         fi
         
@@ -1136,6 +1171,71 @@ w() {
         echo "$script_path" > "$repo_script_file"
         echo -e "${COLORS[GREEN]}✅ Set archive script for repository '${COLORS[BOLD]}$repo_name${COLORS[NC]}${COLORS[GREEN]}': $script_path${COLORS[NC]}"
         return 0
+    elif [[ "$2" == "--emoji_diff_script" ]]; then
+        local repo_name="$1"
+        local script_path="$3"
+        
+        if [[ -z "$repo_name" ]]; then
+            echo "Usage: w <repo> --emoji_diff_script <path>"
+            echo "       w <repo> --emoji_diff_script \"\" (to clear)"
+            return 1
+        fi
+        
+        if [[ -z "$script_path" ]] && [[ "$#" -lt 3 ]]; then
+            echo "Usage: w <repo> --emoji_diff_script <path>"
+            echo "       w <repo> --emoji_diff_script \"\" (to clear)"
+            return 1
+        fi
+        
+        # Check if repo exists
+        if [[ ! -d "$projects_dir/$repo_name" ]]; then
+            echo -e "${COLORS[RED]}❌ Repository not found: $repo_name${COLORS[NC]}"
+            echo ""
+            echo -e "${COLORS[YELLOW]}Available repositories:${COLORS[NC]}"
+            for dir in "$projects_dir"/*(N/); do
+                if [[ -e "$dir/.git" ]]; then
+                    echo "  • $(basename "$dir")"
+                fi
+            done
+            return 1
+        fi
+        
+        local repo_script_file="$HOME/.local/share/worktree-wrangler/repos/${repo_name}.emoji_diff_script"
+        
+        # Handle clearing the script
+        if [[ "$script_path" == "" ]]; then
+            if [[ -f "$repo_script_file" ]]; then
+                rm "$repo_script_file"
+                echo -e "${COLORS[GREEN]}✅ Cleared emoji diff script for repository: $repo_name${COLORS[NC]}"
+            else
+                echo -e "${COLORS[YELLOW]}⚠️  No emoji diff script was configured for repository: $repo_name${COLORS[NC]}"
+            fi
+            return 0
+        fi
+        
+        # Expand tilde and resolve path
+        script_path="${script_path/#\~/$HOME}"
+        script_path=$(realpath "$script_path" 2>/dev/null || echo "$script_path")
+        
+        if [[ ! -f "$script_path" ]]; then
+            echo -e "${COLORS[RED]}❌ Script file does not exist: $script_path${COLORS[NC]}"
+            return 1
+        fi
+        
+        if [[ ! -x "$script_path" ]]; then
+            echo -e "${COLORS[RED]}❌ Script file is not executable: $script_path${COLORS[NC]}"
+            echo -e "${COLORS[YELLOW]}💡 Run: chmod +x $script_path${COLORS[NC]}"
+            return 1
+        fi
+        
+        # Create repos directory if it doesn't exist
+        mkdir -p "$(dirname "$repo_script_file")"
+        
+        # Store the script path
+        echo "$script_path" > "$repo_script_file"
+        echo -e "${COLORS[GREEN]}✅ Set emoji diff script for repository '${COLORS[BOLD]}$repo_name${COLORS[NC]}${COLORS[GREEN]}': $script_path${COLORS[NC]}"
+        echo -e "${COLORS[CYAN]}ℹ️  This script will receive git diff on stdin and should output an emoji to stdout${COLORS[NC]}"
+        return 0
     fi
     
     # Normal usage: w <project> <worktree> [command...]
@@ -1155,6 +1255,7 @@ w() {
         echo "       w --config <action>"
         echo "       w <repo> --setup_script <path>"
         echo "       w <repo> --archive_script <path>"
+        echo "       w <repo> --emoji_diff_script <path>"
         echo "       w --help"
         return 1
     fi
